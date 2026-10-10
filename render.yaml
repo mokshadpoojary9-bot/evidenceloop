@@ -1,0 +1,27 @@
+# Render blueprint for the backend API.
+# Secrets are marked `sync: false` and must be entered in the Render dashboard.
+services:
+  - type: web
+    name: evidenceloop-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build -w backend
+    startCommand: npm run start -w backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: evidence
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: NEBIUS_BASE_URL
+        value: https://api.tokenfactory.nebius.com/v1
+      - key: NEBIUS_MODEL
+        sync: false

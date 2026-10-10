@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --color-ink-950: #070a12;
+  --color-ink-900: #0c111d;
+  --color-ink-800: #121a2b;
+  --color-ink-700: #1a2438;
+  --color-line: #263249;
+  --color-accent: #5eead4;
+  --color-accent-ink: #04201c;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(1100px 560px at 85% -10%, rgb(20 60 78 / 0.55), transparent 60%),
+      radial-gradient(800px 500px at -10% 110%, rgb(40 30 80 / 0.35), transparent 60%),
+      var(--color-ink-950);
+    background-attachment: fixed;
+    color: var(--color-slate-200);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .card {
+    border: 1px solid var(--color-line);
+    background: color-mix(in srgb, var(--color-ink-900) 86%, transparent);
+    border-radius: 1rem;
+    backdrop-filter: blur(8px);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.625rem;
+    border: 1px solid var(--color-line);
+    background: var(--color-ink-700);
+    padding: 0.5rem 0.95rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-slate-100);
+    transition:
+      border-color 0.15s,
+      filter 0.15s,
+      opacity 0.15s;
+  }
+  .btn:hover:not(:disabled) {
+    border-color: var(--color-slate-500);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+  }
+  .btn-primary:hover:not(:disabled) {
+    border-color: var(--color-accent);
+    filter: brightness(1.08);
+  }
+
+  .input {
+    width: 100%;
+    border-radius: 0.625rem;
+    border: 1px solid var(--color-line);
+    background: var(--color-ink-950);
+    padding: 0.55rem 0.8rem;
+    font-size: 0.9rem;
+    color: var(--color-slate-100);
+  }
+  .input::placeholder {
+    color: var(--color-slate-600);
+  }
+
+  .eyebrow {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-slate-400);
+  }
+
+  /* Hazard stripe used only for DEV ONLY / simulated surfaces. */
+  .dev-stripe {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgb(232 121 249 / 0.14) 0 10px,
+      transparent 10px 20px
+    );
+  }
+}
