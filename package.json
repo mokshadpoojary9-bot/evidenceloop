@@ -17,7 +17,8 @@
     "start": "npm run start -w backend",
     "test": "npm run test -w backend",
     "lint": "eslint .",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "check:supabase": "npm run check:supabase -w backend"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

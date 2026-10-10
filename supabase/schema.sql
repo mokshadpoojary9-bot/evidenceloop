@@ -151,6 +151,24 @@ begin
   end loop;
 end $$;
 
+-- ---------- Privileges ----------
+-- Stated explicitly rather than relying on project defaults, which differ between
+-- Supabase projects. RLS above still decides which rows `authenticated` can see.
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'work_orders', 'requirements', 'evidence', 'analysis_runs', 'assessments',
+    'evidence_requests', 'audit_events'
+  ] loop
+    execute format('revoke all on public.%I from anon, authenticated', t);
+    execute format('grant select on public.%I to authenticated', t);
+    execute format('grant all on public.%I to service_role', t);
+  end loop;
+end $$;
+
 -- ---------- Realtime ----------
 -- The dashboard subscribes to these tables to update live as the agent works.
 
