@@ -4,24 +4,42 @@ import { supabase } from './lib/supabase';
 import type { SystemStatus, WorkOrderDetail } from './types';
 
 let systemPromise: Promise<SystemStatus> | null = null;
+const SYSTEM_RECHECK_MS = 3000;
 
-/** System status (AI mode, persistence, auth). Fetched once per page load. */
+/**
+ * System status (AI mode, persistence, auth). Fetched once per page load, and
+ * re-fetched while the backend's live AI connection test is still running.
+ */
 export function useSystem() {
   const [system, setSystem] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    systemPromise ??= api.system();
-    systemPromise.then(
-      (value) => !cancelled && setSystem(value),
-      (err: Error) => {
-        systemPromise = null; // allow a retry on the next mount
-        if (!cancelled) setError(err.message);
-      },
-    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = () => {
+      systemPromise ??= api.system();
+      systemPromise.then(
+        (value) => {
+          if (cancelled) return;
+          setSystem(value);
+          if (value.ai.live.state === 'checking') {
+            timer = setTimeout(() => {
+              systemPromise = null;
+              load();
+            }, SYSTEM_RECHECK_MS);
+          }
+        },
+        (err: Error) => {
+          systemPromise = null; // allow a retry on the next mount
+          if (!cancelled) setError(err.message);
+        },
+      );
+    };
+    load();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, []);
 

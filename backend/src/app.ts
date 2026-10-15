@@ -36,7 +36,8 @@ export function createApp({ db, files, engine, supabase, system, corsOrigins }: 
       const segments = (req.params as { path: string[] }).path;
       const absolute = files.absolutePath(segments.join('/'));
       if (!absolute) throw new HttpError(404, 'File not found');
-      res.sendFile(absolute, (error) => {
+      // The local data directory is `.data/`, which `send` would otherwise refuse as a dotfile.
+      res.sendFile(absolute, { dotfiles: 'allow' }, (error) => {
         if (error && !res.headersSent) res.status(404).json({ error: 'File not found' });
       });
     });

@@ -16,8 +16,10 @@ import {
   type WorkOrderDetail,
 } from './types.js';
 
-const uploadDir = mkdtempSync(join(tmpdir(), 'evidenceloop-test-'));
-afterAll(() => rmSync(uploadDir, { recursive: true, force: true }));
+const tempDir = mkdtempSync(join(tmpdir(), 'evidenceloop-test-'));
+// Mirrors the real local layout (`.data/uploads`), including the dot-directory.
+const uploadDir = join(tempDir, '.data', 'uploads');
+afterAll(() => rmSync(tempDir, { recursive: true, force: true }));
 
 const MIME: Record<EvidenceKind, string> = {
   before_photo: 'image/jpeg',
@@ -35,7 +37,14 @@ function setup(provider: AiProvider | null) {
   const engine = createEngine(db, provider);
   const system: SystemStatus = {
     status: 'ok',
-    ai: { mode: 'unconfigured', production: false, provider: 'none', model: null, message: '' },
+    ai: {
+      mode: 'unconfigured',
+      production: false,
+      provider: 'none',
+      model: null,
+      message: '',
+      live: { state: 'not_configured', vision: null, checkedAt: null, detail: null },
+    },
     persistence: 'local',
     auth: 'disabled',
     maxUploadMb: 1,
@@ -141,6 +150,15 @@ describe('demo scenario: replace emergency light in Room 204 (DEV fixture provid
     const d = await detail(id);
     expect(d.workOrder.status).toBe('CONTRADICTED');
     expect(statuses(d)).toEqual(['PROVEN', 'PROVEN', 'CONTRADICTED', 'CONTRADICTED', 'PROVEN', 'PROVEN']);
+  });
+
+  it('serves uploaded files in local mode (the data directory is a dot-directory)', async () => {
+    const id = await create();
+    await upload(id, 'after_photo');
+    const d = await detail(id);
+    const res = await api.get(d.evidence[0]!.url!);
+    expect(res.status).toBe(200);
+    expect(res.body.toString()).toBe('fake after_photo bytes');
   });
 
   it('rejects a file whose type does not match the evidence kind', async () => {

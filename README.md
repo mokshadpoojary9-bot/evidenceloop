@@ -23,8 +23,28 @@ provider in this project; no other AI API or SDK is used or may be added.
 - verification runs are refused (`503 AI_NOT_CONFIGURED`) — nothing is ever marked proven;
 - everything else works: work orders, checklists, evidence upload, audit trail.
 
-The Nebius adapter (`backend/src/ai/nebiusProvider.ts`) is written but has **not been run against
-the live service**. Expect to adjust it once a key exists.
+The Nebius adapter (`backend/src/ai/nebiusProvider.ts`) is written and unit-tested against
+simulated responses (code-fenced JSON, reasoning text before the answer, 401/404/429/5xx,
+timeouts), but has **not been run against the live service**. Expect to tune the prompt once a key
+exists.
+
+When Nebius is configured, the backend runs a live connection test at startup (one small text
+request, one small image request). The dashboard says **"Production AI: NVIDIA Nemotron via
+Nebius — connected"** with the model id only after that test passes; until then it shows
+"Nemotron configured · not verified".
+
+### What the model can inspect
+
+| Evidence | How it is sent | Not inspected |
+| --- | --- | --- |
+| Photos | Inline image (≤ 5 MB) — needs a vision Nemotron model | Larger images |
+| Text / transcript | Inline text, first 20,000 characters | The rest |
+| PDF | Text layer extracted on the backend (`unpdf`), first 20,000 characters | Scanned PDFs without a text layer (no OCR), images inside PDFs |
+| Video | Up to 8 still frames, about one every 2 s (spread wider for long clips), each labelled with its timestamp so observations carry `startSec`/`endSec` (`ffmpeg-static`) | What happens between frames; the soundtrack |
+| Audio | — | Everything (no transcription) |
+
+Anything not inspected is declared to the model as "attached but NOT inspected", with the reason,
+so it cannot claim to have seen it.
 
 ### DEV ONLY fixture
 
@@ -149,6 +169,8 @@ With no Supabase credentials the backend runs in **local mode**: data and upload
 | `npm run typecheck` | Type-check both workspaces |
 | `npm run check` | Lint, typecheck, test and build — run before every commit |
 | `npm run build` | Build both workspaces |
+| `npm run check:supabase` | Checks the Supabase key, tables and storage bucket |
+| `npm run check:nebius` | Live Nebius test: prints configured yes/no, model id, text OK/FAIL, image (vision) OK/FAIL and latency. Never prints the key |
 
 ### Connecting Supabase
 
@@ -162,7 +184,16 @@ With Supabase configured the API requires a signed-in user, files go to a privat
 ### Enabling Nebius (when the key is available)
 
 Set `NEBIUS_API_KEY` and `NEBIUS_MODEL` (the exact Nemotron model id from the Nebius console) in
-`backend/.env`, or in Render's environment settings. Nothing else needs to change.
+`backend/.env`, or in Render's environment settings, then run `npm run check:nebius`.
+
+EvidenceLoop inspects photos and video frames, so the model must be **vision-capable**. If the
+check reports text OK but image FAIL, pick a vision Nemotron model (Nemotron Nano VL / Omni) in the
+Token Factory console and set `NEBIUS_MODEL` to its id.
+
+`ffmpeg-static` downloads an ffmpeg binary in its install script; the root `package.json` approves
+that script under `allowScripts`. If video frames fail with `EFTYPE`, the download was
+interrupted — delete `node_modules/ffmpeg-static/ffmpeg.exe` (or `ffmpeg`) and run
+`node node_modules/ffmpeg-static/install.js`.
 
 ## Environment variables
 
@@ -200,9 +231,8 @@ Vite), and set the three `VITE_*` variables.
 ## Not built yet
 
 - Live Nebius/Nemotron verification (blocked on the API key) and prompt tuning against real output
-- PDF text extraction, video frame sampling and audio transcription, so the model can inspect
-  those files (today only images and plain text are sent; other files are declared to the model
-  as "attached but not inspected")
+- Audio transcription (audio and video soundtracks are "attached but not inspected") and OCR for
+  scanned PDFs
 - Deriving requirements from an uploaded SOP instead of a fixed template
 - Reviewer sign-off for contradicted work orders; roles beyond a single owner
 - Frontend tests

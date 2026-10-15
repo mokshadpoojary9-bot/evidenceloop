@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { createEngine } from './agent/engine.js';
-import { createAiProvider, describeAi } from './ai/index.js';
+import { createAiProvider, describeAi, verifyLiveAi } from './ai/index.js';
 import { createApp } from './app.js';
 import { corsOrigins, env } from './config/env.js';
 import { supabase } from './lib/supabase.js';
@@ -31,3 +31,11 @@ app.listen(env.PORT, () => {
   console.log(`  persistence: ${system.persistence}${supabase ? '' : ` (${env.LOCAL_DATA_DIR}/, no auth — local development only)`}`);
   console.log(`  ai:          ${system.ai.mode} — ${system.ai.message}`);
 });
+
+// Live connection test: the dashboard only reports Nemotron as connected after this passes.
+if (system.ai.mode === 'nebius') {
+  void verifyLiveAi(system.ai).then(
+    () => console.log(`  ai live test: ${system.ai.live.state}${system.ai.live.detail ? ` — ${system.ai.live.detail}` : ''}`),
+    (error: unknown) => console.error('  ai live test crashed:', error instanceof Error ? error.message : error),
+  );
+}

@@ -1,4 +1,4 @@
-import { Cpu, FlaskConical, TriangleAlert } from 'lucide-react';
+import { Cpu, FlaskConical, LoaderCircle, TriangleAlert } from 'lucide-react';
 import type { SystemStatus } from '../types';
 
 /** Compact AI-mode indicator for the header. */
@@ -8,9 +8,25 @@ export function AiPill({ system, error }: { system: SystemStatus | null; error: 
 
   switch (system.ai.mode) {
     case 'nebius':
+      // "Connected" is only claimed after the backend's live text + image test passed.
+      if (system.ai.live.state === 'connected') {
+        return (
+          <Pill className="border-emerald-400/30 text-emerald-300" title={system.ai.message}>
+            <Cpu className="size-3.5" aria-hidden /> Production AI: NVIDIA Nemotron via Nebius — connected ·{' '}
+            <span className="font-mono">{system.ai.model}</span>
+          </Pill>
+        );
+      }
+      if (system.ai.live.state === 'checking') {
+        return (
+          <Pill className="border-sky-400/30 text-sky-300" title={system.ai.message}>
+            <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> Nemotron configured · testing connection
+          </Pill>
+        );
+      }
       return (
-        <Pill className="border-emerald-400/30 text-emerald-300" title={system.ai.message}>
-          <Cpu className="size-3.5" aria-hidden /> Nemotron · Nebius
+        <Pill className="border-amber-400/40 text-amber-300" title={system.ai.message}>
+          <TriangleAlert className="size-3.5" aria-hidden /> Nemotron configured · not verified
         </Pill>
       );
     case 'dev-fixture':
@@ -41,7 +57,22 @@ function Pill({ className, title, children }: { className: string; title?: strin
 
 /** Full-width explanation of the AI mode. Renders nothing when production AI is live. */
 export function AiBanner({ system }: { system: SystemStatus | null }) {
-  if (!system || system.ai.mode === 'nebius') return null;
+  if (!system) return null;
+
+  if (system.ai.mode === 'nebius') {
+    if (system.ai.live.state !== 'failed') return null;
+    return (
+      <div role="note" className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+        <p className="flex items-center gap-2 font-bold">
+          <TriangleAlert className="size-4 shrink-0" aria-hidden /> NVIDIA Nemotron is configured but not verified
+        </p>
+        <p className="mt-1 text-amber-100/80">
+          The live connection test failed: {system.ai.live.detail} Run <code className="font-mono">npm run check:nebius</code>{' '}
+          on the backend for details.
+        </p>
+      </div>
+    );
+  }
 
   if (system.ai.mode === 'dev-fixture') {
     return (

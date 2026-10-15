@@ -1,6 +1,10 @@
-import { chatCompletion, type ChatMessage, type ContentPart, type NebiusConfig } from '../lib/nebius.js';
+import { chatCompletion, NebiusError, type ChatMessage, type ContentPart, type NebiusConfig } from '../lib/nebius.js';
+import { extractPdfText, MAX_TEXT_CHARS } from '../media/pdfText.js';
+import { sampleVideoFrames } from '../media/videoFrames.js';
 import type { FileStore } from '../stores/fileStore.js';
 import { CANNOT_VERIFY, EVIDENCE_KINDS, EVIDENCE_KIND_LABELS, type Evidence } from '../types.js';
+import { formatTimestamp } from './format.js';
+import { parseModelJson } from './modelJson.js';
 import type { AiProvider, AssessInput } from './provider.js';
 
 /**
@@ -10,16 +14,17 @@ import type { AiProvider, AssessInput } from './provider.js';
  * against the live service — no API key is available. It is only constructed
  * when NEBIUS_API_KEY and NEBIUS_MODEL are both set (see ai/index.ts).
  *
- * What the model can currently inspect:
- *   - images          → sent inline
- *   - text/transcript → sent inline
- *   - PDF, video, audio → NOT yet inspectable. They are listed to the model as
- *     "attached but not inspected" so it cannot claim to have seen them.
- *     (Next stage: PDF text extraction, video frame sampling, audio transcription.)
+ * What the model can inspect:
+ *   - images          → sent inline (needs a vision-capable Nemotron model)
+ *   - text/transcript → sent inline, capped at MAX_TEXT_CHARS
+ *   - PDF             → text layer extracted on the backend, capped at MAX_TEXT_CHARS.
+ *                       Scans without a text layer are "attached but not inspected".
+ *   - video           → up to 8 still frames (about one every 2 s), labelled with timestamps
+ *   - audio (and video soundtracks) → NOT inspected; there is no transcription.
+ * Anything not inspected is listed to the model as such, so it cannot claim to have seen it.
  */
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MAX_TEXT_CHARS = 20_000;
 
 const SYSTEM_PROMPT = `You are EvidenceLoop, an evidence-verification agent. You decide whether the supplied evidence PROVES that each requirement of a real-world work order was met. You are not classifying images; you are judging proof.
 
@@ -32,7 +37,8 @@ Rules you must follow:
 - For NOT_PROVEN and UNCERTAIN, the reasoning must begin with exactly: "${CANNOT_VERIFY}"
 - For every requirement that is not PROVEN, list the minimum additional evidence that would settle it, as specific, actionable instructions a technician can follow.
 - "confidence" is your own calibrated probability (0 to 1) that the status is correct. Use null if you cannot estimate it. Do not inflate it.
-- For video or audio, give startSec/endSec for each observation when you can; otherwise null.
+- A video is shown to you as still frames, each labelled with its timestamp. Cite the video's evidenceId (not a frame) and give startSec/endSec from the frame timestamps you relied on. You have NOT seen what happens between frames and have NOT heard any audio; do not describe either.
+- For audio, give startSec/endSec when you can; otherwise null.
 - Never state or imply that physical safety is guaranteed.
 
 Respond with a single JSON object and nothing else:
@@ -96,8 +102,17 @@ export class NebiusNemotronProvider implements AiProvider {
       { role: 'user', content: parts },
     ];
 
-    const completion = await chatCompletion(this.config, messages, { jsonMode: true });
-    const parsed = parseJsonObject(completion);
+    let completion: string;
+    try {
+      completion = await chatCompletion(this.config, messages, { jsonMode: true });
+    } catch (error) {
+      // Not every model accepts response_format; the prompt already demands JSON, so retry without it.
+      if (!(error instanceof NebiusError && error.code === 'BAD_REQUEST' && /response_format|json/i.test(error.message))) {
+        throw error;
+      }
+      completion = await chatCompletion(this.config, messages);
+    }
+    const parsed = parseModelJson(completion);
     const assessments = (parsed as { assessments?: unknown })?.assessments;
     // Anything malformed is handed to the policy as "no valid assessment" → NOT_PROVEN.
     return Array.isArray(assessments) ? assessments : [];
@@ -107,8 +122,15 @@ export class NebiusNemotronProvider implements AiProvider {
     const header =
       `evidenceId=${item.id} | kind=${EVIDENCE_KIND_LABELS[item.kind]} | file=${item.fileName}` +
       (item.note ? ` | uploader note (unverified claim): ${item.note}` : '');
+    const notInspected = (reason: string): ContentPart[] => [
+      {
+        type: 'text',
+        text: `${header} | attached but NOT inspected (${reason}) — you have not seen its content and must not describe it.`,
+      },
+    ];
 
-    if (item.mimeType.startsWith('image/') && item.sizeBytes <= MAX_IMAGE_BYTES) {
+    if (item.mimeType.startsWith('image/')) {
+      if (item.sizeBytes > MAX_IMAGE_BYTES) return notInspected('image larger than 5 MB');
       const data = await this.files.read(item.storagePath);
       return [
         { type: 'text', text: `${header} | image follows:` },
@@ -124,28 +146,53 @@ export class NebiusNemotronProvider implements AiProvider {
       return [
         {
           type: 'text',
-          text: `${header} | text content follows:\n"""\n${text.slice(0, MAX_TEXT_CHARS)}\n"""`,
+          text: `${header} | text content follows${text.length > MAX_TEXT_CHARS ? ` (first ${MAX_TEXT_CHARS} characters only)` : ''}:
+"""
+${text.slice(0, MAX_TEXT_CHARS)}
+"""`,
         },
       ];
     }
 
-    return [
-      {
-        type: 'text',
-        text: `${header} | attached but NOT inspected — you have not seen its content and must not describe it.`,
-      },
-    ];
-  }
-}
+    if (item.mimeType === 'application/pdf') {
+      const pdf = await extractPdfText(await this.files.read(item.storagePath));
+      if (!pdf.ok) return notInspected(`PDF ${pdf.reason}`);
+      return [
+        {
+          type: 'text',
+          text:
+            `${header} | PDF, ${pdf.pages} page(s). Extracted text layer follows` +
+            `${pdf.truncated ? ` (first ${MAX_TEXT_CHARS} characters only; the rest was NOT inspected)` : ''}. ` +
+            `Images and drawings inside the PDF were NOT inspected:
+"""
+${pdf.text}
+"""`,
+        },
+      ];
+    }
 
-/** Models sometimes wrap JSON in prose or code fences; take the outermost object. */
-function parseJsonObject(text: string): unknown {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) return null;
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
+    if (item.mimeType.startsWith('video/')) {
+      const video = await sampleVideoFrames(await this.files.read(item.storagePath));
+      if (!video.ok) return notInspected(`video ${video.reason}`);
+      const parts: ContentPart[] = [
+        {
+          type: 'text',
+          text:
+            `${header} | video${video.durationSec !== null ? ` of ${video.durationSec.toFixed(1)} s` : ''}, shown as ` +
+            `${video.frames.length} still frame(s) at the timestamps below. Nothing between frames was inspected.` +
+            (video.hasAudio ? ' The soundtrack was NOT inspected.' : ''),
+        },
+      ];
+      for (const frame of video.frames) {
+        parts.push(
+          { type: 'text', text: `evidenceId=${item.id} frame at t=${formatTimestamp(frame.timeSec)} (${frame.timeSec} s):` },
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${frame.jpeg.toString('base64')}` } },
+        );
+      }
+      return parts;
+    }
+
+    if (item.mimeType.startsWith('audio/')) return notInspected('audio transcription is not available');
+    return notInspected('unsupported file type');
   }
 }

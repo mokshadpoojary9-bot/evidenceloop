@@ -224,6 +224,15 @@ export interface WorkOrderDetail {
 
 export type AiMode = 'nebius' | 'dev-fixture' | 'unconfigured';
 
+export interface LiveAiStatus {
+  state: 'not_configured' | 'checking' | 'connected' | 'failed';
+  /** Whether the image request succeeded; null until tested. */
+  vision: boolean | null;
+  checkedAt: string | null;
+  /** Failure reason, never containing a key. */
+  detail: string | null;
+}
+
 export interface SystemStatus {
   status: 'ok';
   ai: {
@@ -233,6 +242,11 @@ export interface SystemStatus {
     provider: ProviderId;
     model: string | null;
     message: string;
+    /**
+     * Result of the live connection test the backend runs at startup when Nebius is
+     * configured. "connected" only after a real text and image request succeeded.
+     */
+    live: LiveAiStatus;
   };
   persistence: 'supabase' | 'local';
   auth: 'supabase' | 'disabled';
