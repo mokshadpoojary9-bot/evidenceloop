@@ -6,6 +6,7 @@ import { useSystem, useWorkOrder } from '../hooks';
 import type { EvidenceRequest } from '../types';
 import { AuditTrail } from './AuditTrail';
 import { EvidencePanel } from './EvidencePanel';
+import { EvidenceViewer, type ViewTarget } from './EvidenceViewer';
 import { EvidenceRequests } from './EvidenceRequests';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS, formatDate } from './labels';
 import { LoopVisual } from './LoopVisual';
@@ -23,6 +24,7 @@ export function WorkOrderDetail() {
   const [respondingTo, setRespondingTo] = useState<EvidenceRequest | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [viewing, setViewing] = useState<ViewTarget | null>(null);
 
   if (error && !detail) {
     return (
@@ -147,7 +149,12 @@ export function WorkOrderDetail() {
             </div>
             <ul className="space-y-2">
               {requirements.map((requirement) => (
-                <RequirementCard key={requirement.id} requirement={requirement} evidence={evidence} />
+                <RequirementCard
+                  key={requirement.id}
+                  requirement={requirement}
+                  evidence={evidence}
+                  onOpenEvidence={setViewing}
+                />
               ))}
             </ul>
           </section>
@@ -177,11 +184,20 @@ export function WorkOrderDetail() {
             respondingTo={respondingTo}
             onClearRequest={() => setRespondingTo(null)}
             onUploaded={() => void refresh()}
+            onOpen={(evidenceId) => setViewing({ evidenceId })}
           />
 
           <AuditTrail events={audit} />
         </aside>
       </div>
+
+      <EvidenceViewer
+        detail={detail}
+        aiMode={system?.ai.mode ?? null}
+        target={viewing}
+        onNavigate={setViewing}
+        onClose={() => setViewing(null)}
+      />
     </div>
   );
 }

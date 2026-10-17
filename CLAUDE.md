@@ -85,6 +85,11 @@ the emergency light functional test."; uploading it re-analyzes the affected req
   backend's equivalent startup test passes.
 - Evidence media: `backend/src/media/` (PDF text via `unpdf`, video frames via `ffmpeg-static`).
 - Domain model: `backend/src/types.ts` (the frontend imports it via the `@domain` alias).
+- Roles and access: `backend/src/stores/workOrders.ts` (permissions), `routes/reviews.ts`
+  (sign-off), `middleware/auth.ts` (role lookup; demo switcher only without Supabase). Approval by
+  a reviewer is `APPROVED`, a human decision, never `VERIFIED`.
+- SOP → requirements: `routes/requirements.ts` + guard `agent/sopDraft.ts` (quotes must be in the
+  SOP). Nothing is saved until the user confirms.
 - The loop: `backend/src/agent/engine.ts`; guardrails: `agent/policy.ts`; request planning:
   `agent/planner.ts`; provider seam: `backend/src/ai/provider.ts`.
 - Persistence: `backend/src/stores/` (Supabase, or a local unauthenticated fallback in

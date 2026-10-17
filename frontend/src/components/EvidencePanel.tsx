@@ -21,6 +21,8 @@ interface Props {
   respondingTo: EvidenceRequest | null;
   onClearRequest: () => void;
   onUploaded: () => void;
+  /** Opens the evidence viewer. */
+  onOpen: (evidenceId: string) => void;
 }
 
 const OUTCOME_MESSAGE: Record<ReanalysisOutcome, string> = {
@@ -38,6 +40,7 @@ export function EvidencePanel({
   respondingTo,
   onClearRequest,
   onUploaded,
+  onOpen,
 }: Props) {
   const [kind, setKind] = useState<EvidenceKind>('before_photo');
   const [file, setFile] = useState<File | null>(null);
@@ -98,22 +101,25 @@ export function EvidencePanel({
             const url = fileUrl(item.url);
             return (
               <li key={item.id} className="flex items-center gap-3 rounded-xl border border-line bg-ink-800 p-2">
-                {url && item.mimeType.startsWith('image/') ? (
-                  <img src={url} alt="" className="size-11 shrink-0 rounded-lg object-cover" loading="lazy" />
-                ) : (
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-ink-700 text-slate-400">
-                    <Icon className="size-5" aria-hidden />
-                  </span>
-                )}
+                <button
+                  type="button"
+                  className="shrink-0 rounded-lg"
+                  onClick={() => onOpen(item.id)}
+                  aria-label={`View ${item.fileName}`}
+                >
+                  {url && item.mimeType.startsWith('image/') ? (
+                    <img src={url} alt="" className="size-11 rounded-lg object-cover" loading="lazy" />
+                  ) : (
+                    <span className="flex size-11 items-center justify-center rounded-lg bg-ink-700 text-slate-400">
+                      <Icon className="size-5" aria-hidden />
+                    </span>
+                  )}
+                </button>
                 <div className="min-w-0 flex-1 text-sm">
                   <p className="truncate font-medium text-white">
-                    {url ? (
-                      <a href={url} target="_blank" rel="noreferrer" className="hover:underline">
-                        {item.fileName}
-                      </a>
-                    ) : (
-                      item.fileName
-                    )}
+                    <button type="button" className="max-w-full truncate text-left hover:underline" onClick={() => onOpen(item.id)}>
+                      {item.fileName}
+                    </button>
                   </p>
                   <p className="truncate text-xs text-slate-400">
                     {EVIDENCE_KIND_LABELS[item.kind]} · {formatBytes(item.sizeBytes)} · {formatDate(item.createdAt)}

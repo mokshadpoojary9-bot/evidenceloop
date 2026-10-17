@@ -128,6 +128,14 @@ With the DEV fixture the list is simulated — step-like lines copied verbatim f
 keyword guess at the evidence — and is labelled as such. Scanned PDFs without a text layer are
 refused (422), and with no AI configured drafting is refused (503) rather than faked.
 
+## Evidence viewer
+
+Click any evidence file, or any evidence cited in a requirement's observations, to open it in the
+viewer: images (fit / actual size), video and audio players, PDFs inline, and text files. Beside
+it are the file's metadata and full SHA-256, **what the AI can actually inspect** for that file
+type (and what it cannot — e.g. a video's soundtrack, a scanned PDF), and every observation that
+cites the file. Clicking a video observation's timestamp jumps the player to that moment.
+
 ## Managing work orders
 
 - **List** — search (title, location, description), filter by status or archived, sort by
@@ -233,7 +241,7 @@ With no Supabase credentials the backend runs in **local mode**: data and upload
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | API and dashboard with hot reload |
-| `npm test` | Backend tests (policy, planner, full demo loop over HTTP) |
+| `npm test` | Backend tests (policy, planner, media, Nebius client, full demo loop and review flow over HTTP) and frontend tests (components, filters, AI status labels) |
 | `npm run lint` | ESLint over both workspaces |
 | `npm run typecheck` | Type-check both workspaces |
 | `npm run check` | Lint, typecheck, test and build — run before every commit |
@@ -301,5 +309,5 @@ Vite), and set the three `VITE_*` variables.
 
 - Live Nebius/Nemotron verification (blocked on the API key) and prompt tuning against real output
 - Audio transcription (audio and video soundtracks are "attached but not inspected") and OCR for
-  scanned PDFs
-- Frontend tests
+  scanned PDFs. Only NVIDIA Nemotron via Nebius may be used, so both wait for a Nemotron model
+  that accepts audio or page images to be confirmed on Token Factory

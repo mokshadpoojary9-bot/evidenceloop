@@ -4,16 +4,18 @@ import { useState, type ReactNode } from 'react';
 import { CANNOT_VERIFY, EVIDENCE_KIND_LABELS, type Evidence, type WorkOrderDetail } from '../types';
 import { REQUIREMENT_STATUS, formatSeconds } from './labels';
 import { StatusBadge } from './StatusBadge';
+import type { ViewTarget } from './EvidenceViewer';
 
 type RequirementWithAssessment = WorkOrderDetail['requirements'][number];
 
 interface Props {
   requirement: RequirementWithAssessment;
   evidence: Evidence[];
+  onOpenEvidence: (target: ViewTarget) => void;
 }
 
 /** One checklist item, expandable into Requirement → Evidence → Observation → Reasoning → Decision. */
-export function RequirementCard({ requirement, evidence }: Props) {
+export function RequirementCard({ requirement, evidence, onOpenEvidence }: Props) {
   const [open, setOpen] = useState(false);
   const { assessment } = requirement;
   const meta = REQUIREMENT_STATUS[requirement.status];
@@ -89,8 +91,15 @@ export function RequirementCard({ requirement, evidence }: Props) {
                     ) : (
                       <ul className="flex flex-wrap gap-1.5">
                         {cited.map((id) => (
-                          <li key={id} className="rounded-md border border-line bg-ink-800 px-2 py-0.5 text-xs">
-                            {describe(evidenceById.get(id))}
+                          <li key={id}>
+                            <button
+                              type="button"
+                              className="rounded-md border border-line bg-ink-800 px-2 py-0.5 text-xs hover:border-slate-500"
+                              onClick={() => onOpenEvidence({ evidenceId: id })}
+                              disabled={!evidenceById.has(id)}
+                            >
+                              {describe(evidenceById.get(id))}
+                            </button>
                           </li>
                         ))}
                       </ul>
@@ -120,13 +129,20 @@ export function RequirementCard({ requirement, evidence }: Props) {
                             </span>
                             <span className="text-slate-300">
                               {observation.text}
-                              <span className="ml-1 text-xs text-slate-500">
+                              <button
+                                type="button"
+                                className="ml-1 text-left text-xs text-slate-500 hover:text-slate-300 hover:underline"
+                                onClick={() =>
+                                  onOpenEvidence({ evidenceId: observation.evidenceId, atSec: observation.startSec })
+                                }
+                                disabled={!evidenceById.has(observation.evidenceId)}
+                              >
                                 — {describe(evidenceById.get(observation.evidenceId))}
                                 {observation.startSec !== null &&
                                   ` @ ${formatSeconds(observation.startSec)}${
                                     observation.endSec !== null ? `–${formatSeconds(observation.endSec)}` : ''
                                   }`}
-                              </span>
+                              </button>
                             </span>
                           </li>
                         ))}

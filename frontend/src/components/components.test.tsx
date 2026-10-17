@@ -1,0 +1,142 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assessment, detail, NO_PERMISSIONS, review, system } from '../test/fixtures';
+import { EvidenceViewer } from './EvidenceViewer';
+import { REQUIREMENT_STATUS, WORK_ORDER_STATUS } from './labels';
+import { ReviewPanel } from './ReviewPanel';
+import { StatusBadge } from './StatusBadge';
+import { AiBanner, AiPill } from './SystemStatus';
+
+const apiMock = vi.hoisted(() => ({ submitForReview: vi.fn(), decideReview: vi.fn() }));
+vi.mock('../api', () => ({ api: apiMock, fileUrl: (url: string | null) => url }));
+
+beforeEach(() => {
+  apiMock.submitForReview.mockReset().mockResolvedValue({});
+  apiMock.decideReview.mockReset().mockResolvedValue({});
+});
+
+describe('AiPill', () => {
+  it('says "connected" with the model id only after the live test passed', () => {
+    const { rerender } = render(<AiPill system={system()} error={null} />);
+    expect(screen.getByText(/NVIDIA Nemotron via Nebius — connected/)).toBeTruthy();
+    expect(screen.getByText('nvidia/nemotron-nano-vl')).toBeTruthy();
+
+    rerender(<AiPill system={system({ live: { state: 'failed', vision: false, checkedAt: null, detail: 'x' } })} error={null} />);
+    expect(screen.queryByText(/connected/)).toBeNull();
+    expect(screen.getByText(/not verified/)).toBeTruthy();
+
+    rerender(<AiPill system={system({ live: { state: 'checking', vision: null, checkedAt: null, detail: null } })} error={null} />);
+    expect(screen.queryByText(/— connected/)).toBeNull();
+  });
+
+  it('labels the DEV fixture as not AI, and an unconfigured backend as such', () => {
+    const { rerender } = render(<AiPill system={system({ mode: 'dev-fixture' })} error={null} />);
+    expect(screen.getByText(/DEV fixture · not AI/)).toBeTruthy();
+    rerender(<AiPill system={system({ mode: 'unconfigured' })} error={null} />);
+    expect(screen.getByText(/Production AI not configured/)).toBeTruthy();
+  });
+
+  it('explains a failed live test in the banner', () => {
+    render(<AiBanner system={system({ live: { state: 'failed', vision: false, checkedAt: null, detail: 'not vision-capable.' } })} />);
+    expect(screen.getByText(/configured but not verified/)).toBeTruthy();
+    expect(screen.getByText(/not vision-capable/)).toBeTruthy();
+  });
+});
+
+describe('StatusBadge', () => {
+  it('marks simulated results', () => {
+    render(<StatusBadge meta={REQUIREMENT_STATUS.PROVEN} simulated />);
+    expect(screen.getByText('Simulated · dev fixture')).toBeTruthy();
+  });
+
+  it('never presents a reviewer approval as verified', () => {
+    expect(WORK_ORDER_STATUS.APPROVED.label).not.toMatch(/verified/i);
+    expect(WORK_ORDER_STATUS.APPROVED.explanation).toMatch(/not AI verification/);
+  });
+});
+
+describe('ReviewPanel', () => {
+  it('lets the technician submit a work order for review', async () => {
+    const onChanged = vi.fn();
+    render(<ReviewPanel detail={detail({ permissions: { ...NO_PERMISSIONS, submitForReview: true } })} onChanged={onChanged} />);
+    await userEvent.type(screen.getByLabelText('Note for the reviewer'), 'Please check');
+    await userEvent.click(screen.getByRole('button', { name: 'Submit for review' }));
+    expect(apiMock.submitForReview).toHaveBeenCalledWith('wo-1', 'Please check');
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('shows a waiting technician why they cannot decide', () => {
+    render(
+      <ReviewPanel
+        detail={detail({ reviews: [review()], permissions: { ...NO_PERMISSIONS, reasons: { review: 'Only reviewers can decide reviews.' } } })}
+        onChanged={() => {}}
+      />,
+    );
+    expect(screen.getByText('Only reviewers can decide reviews.')).toBeTruthy();
+    expect(screen.queryByText('Your decision')).toBeNull();
+  });
+
+  it('lets a reviewer approve with a note, warning that approval is not verification', async () => {
+    render(<ReviewPanel detail={detail({ reviews: [review()], permissions: { ...NO_PERMISSIONS, review: true } })} onChanged={() => {}} />);
+    expect(screen.getByText(/Approval is your decision, not AI verification/)).toBeTruthy();
+    await userEvent.type(screen.getByLabelText(/Note \(required/), 'Checked on site');
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(apiMock.decideReview).toHaveBeenCalledWith('wo-1', { decision: 'approve', note: 'Checked on site' });
+  });
+
+  it('sends the evidence request when a reviewer asks for more evidence', async () => {
+    render(<ReviewPanel detail={detail({ reviews: [review()], permissions: { ...NO_PERMISSIONS, review: true } })} onChanged={() => {}} />);
+    await userEvent.click(screen.getByText('Request more evidence', { selector: 'label' }));
+    await userEvent.selectOptions(screen.getByLabelText('Evidence type'), 'additional_photo');
+    await userEvent.type(screen.getByLabelText('Exactly what is needed'), 'Close-up of the indicator');
+    await userEvent.type(screen.getByLabelText(/Note \(required/), 'Need proof');
+    await userEvent.click(screen.getByRole('button', { name: 'Request more evidence' }));
+    expect(apiMock.decideReview).toHaveBeenCalledWith('wo-1', {
+      decision: 'request_evidence',
+      note: 'Need proof',
+      request: { kind: 'additional_photo', instruction: 'Close-up of the indicator' },
+    });
+  });
+
+  it('renders nothing when there is nothing to review', () => {
+    const { container } = render(<ReviewPanel detail={detail()} onChanged={() => {}} />);
+    expect(container.innerHTML).toBe('');
+  });
+});
+
+describe('EvidenceViewer', () => {
+  const withObservation = detail({
+    requirements: [
+      {
+        ...detail().requirements[0]!,
+        assessment: assessment({
+          observations: [
+            { evidenceId: 'ev-video', kind: 'direct', text: 'The lamp lights after the button press.', startSec: 4, endSec: 7 },
+          ],
+        }),
+      },
+    ],
+  });
+
+  it('shows metadata, what the AI can inspect, and the observations citing the file', () => {
+    render(
+      <MemoryRouter>
+        <EvidenceViewer detail={withObservation} aiMode="nebius" target={{ evidenceId: 'ev-video' }} onNavigate={() => {}} onClose={() => {}} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { name: 'test.mp4' })).toBeTruthy();
+    expect(screen.getByText('a'.repeat(64))).toBeTruthy();
+    expect(screen.getByText(/Up to 8 still frames/)).toBeTruthy();
+    expect(screen.getByText(/the soundtrack/)).toBeTruthy();
+    expect(screen.getByText('The lamp lights after the button press.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '0:04–0:07' })).toBeTruthy();
+    expect(screen.getByText(/a claim, not proof/)).toBeTruthy();
+  });
+
+  it('is closed when nothing is selected', () => {
+    render(<EvidenceViewer detail={withObservation} aiMode="nebius" target={null} onNavigate={() => {}} onClose={() => {}} />);
+    expect(screen.queryByText('test.mp4')).toBeNull();
+  });
+});
