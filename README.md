@@ -56,6 +56,25 @@ result it produces is stored with `simulated: true` and labelled "Simulated · d
 dashboard and audit trail. It reports no confidence. It is ignored when `NODE_ENV=production` and
 whenever Nebius is configured.
 
+## Supabase — current status
+
+**Supabase has been verified live** (2026-10-18): auth, database, storage and Realtime.
+
+- `npm run check:supabase` passes every check: secret key, email sign-up with required email
+  confirmation, all 9 tables with every column the backend uses, RLS enabled and read policies
+  on every table, the Realtime publication, the review trigger, and a private `evidence` bucket.
+- An end-to-end run against the live project, with real Nemotron, passed: sign-up returns no
+  session until the email is confirmed and sign-in is refused until then; sign-out revokes the
+  session; the emergency-light work order was created from the template; before/after/close-up
+  photos and the SOP PDF landed in the private bucket and were served only through signed URLs
+  (public URLs and the browser key are refused); a Nemotron run gave every requirement a status
+  and opened evidence requests; Realtime delivered the changes while the run was in flight (and
+  nothing to another technician); a video answering the request triggered re-analysis; the PDF
+  report exported. That run showed re-analysis covering all six requirements, because none was
+  proven yet; it now covers only the affected ones (see *Re-analysis* below). The fix is covered
+  by tests and has not been re-run against Nemotron. RLS was checked with three accounts, and the reviewer rules (below) held in
+  both the backend and the database.
+
 ## The demo scenario
 
 Work order: **Replace emergency light in Room 204.** Six requirements: correct unit installed,
@@ -101,13 +120,17 @@ Every step is in the audit trail with the actor's role. Enforcement is in three 
    user with the reviewer role can decide a review, never the person who submitted it, and a
    decided review cannot be changed.
 
-**Assigning roles (Supabase):** every user is a technician until an administrator runs, in the
-SQL editor:
+**Assigning roles (Supabase):** every user is a technician until an administrator makes them a
+reviewer. The account must already exist (signed up and email confirmed). In the SQL editor:
 
 ```sql
-insert into public.user_roles (id, role) values ('<auth user uuid>', 'reviewer')
-on conflict (id) do update set role = excluded.role;
+insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'you@example.com' on conflict (id) do update set role = excluded.role;
 ```
+
+To make them a technician again: `delete from public.user_roles where id = (select id from auth.users where email = 'you@example.com');`
+The new role applies on the user's next request; reload the dashboard. Reviewers do not create
+work orders, so testing the flow needs two accounts: a technician who submits and a reviewer who
+decides.
 
 **Local mode:** a *Demo: Technician / Reviewer* switcher in the header acts as two fixed local
 users. The backend honours it only when Supabase Auth is not configured.
@@ -189,9 +212,11 @@ The AI provider supplies perception and judgment only. Everything else is determ
   A missing or malformed answer becomes `NOT_PROVEN`.
 - **Planner (`agent/planner.ts`)** — merges missing-evidence needs by kind so one upload can
   settle several requirements. Only unproven *mandatory* requirements generate requests.
-- **Re-analysis** — new evidence re-evaluates every requirement that is not proven, plus any
-  requirement that kind of evidence is relevant to (so new evidence can overturn `PROVEN`).
-  Earlier conclusions are not fed back to the provider.
+- **Re-analysis** — new evidence re-evaluates only the requirements it affects: those named by
+  the evidence request it answers, and those whose evidence needs list its kind (proven ones
+  included, so new evidence can overturn `PROVEN`). Evidence that matches no requirement
+  re-evaluates every unproven one, so nothing is ignored. Earlier conclusions are not fed back to
+  the provider.
 - **Overall status** — `VERIFIED` only when every mandatory requirement is `PROVEN`; any
   contradiction blocks it.
 
@@ -247,14 +272,28 @@ With no Supabase credentials the backend runs in **local mode**: data and upload
 | `npm run typecheck` | Type-check both workspaces |
 | `npm run check` | Lint, typecheck, test and build — run before every commit |
 | `npm run build` | Build both workspaces |
-| `npm run check:supabase` | Checks the Supabase key, tables and storage bucket |
+| `npm run check:supabase` | Checks the Supabase key, auth settings (email confirmation), tables and columns, RLS and policies, Realtime, the review trigger, and that the storage bucket exists and is private |
 | `npm run check:nebius` | Live Nebius test: prints configured yes/no, model id, text OK/FAIL, image (vision) OK/FAIL and latency. Never prints the key |
 
 ### Connecting Supabase
 
-1. Create a project and run `supabase/schema.sql` in the SQL editor.
+1. Create a project and run the whole of `supabase/schema.sql` in the SQL editor (it is
+   idempotent; run it again after pulling schema changes). It also creates the private
+   `evidence` bucket.
 2. Backend (`backend/.env`): `SUPABASE_URL`, `SUPABASE_SECRET_KEY`.
 3. Frontend (`frontend/.env.local`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
+4. **Authentication → Sign In / Providers → Email:** enabled, with **Confirm email** on.
+5. **Authentication → URL Configuration** (local development):
+   - **Site URL:** `http://localhost:5173`
+   - **Redirect URLs:** add `http://localhost:5173/**`
+
+   The confirmation email links back to `/login` on the origin the user signed up from, which
+   signs them in. When the frontend is deployed, add its URL the same way
+   (`https://<your-app>.vercel.app/**`) and make it the Site URL.
+6. Run `npm run check:supabase`; every line must say PASS.
+
+Supabase's built-in email sender is rate-limited (a few emails per hour) and meant for testing;
+configure custom SMTP under **Authentication → Emails** before real users sign up.
 
 With Supabase configured the API requires a signed-in user, files go to a private Storage bucket
 (served through short-lived signed URLs), and the dashboard updates live through Realtime.

@@ -1,4 +1,4 @@
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, MailCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from '../auth';
@@ -11,6 +11,8 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  /** Set after a sign-up that still needs the emailed confirmation link. */
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState<string | null>(null);
 
   const destination = (location.state as { from?: string } | null)?.from ?? '/work-orders';
   if (!auth.enabled || auth.session) return <Navigate to={destination} replace />;
@@ -19,13 +21,46 @@ export function Login() {
     event.preventDefault();
     setBusy(true);
     setMessage(null);
-    const error = mode === 'sign-in' ? await auth.signIn(email, password) : await auth.signUp(email, password);
-    setBusy(false);
-    if (error) setMessage({ text: error, error: true });
-    else if (mode === 'sign-up') {
-      setMessage({ text: 'Account created. If email confirmation is enabled, check your inbox, then sign in.', error: false });
+    if (mode === 'sign-in') {
+      const error = await auth.signIn(email, password);
+      setBusy(false);
+      if (error) setMessage({ text: error, error: true });
+      return;
     }
+    const result = await auth.signUp(email, password);
+    setBusy(false);
+    if (result.error !== null) setMessage({ text: result.error, error: true });
+    else if (result.confirmEmail) {
+      setAwaitingConfirmation(email);
+      setPassword('');
+    }
+    // Otherwise sign-up returned a session and the redirect above takes over.
   };
+
+  if (awaitingConfirmation) {
+    return (
+      <div role="status" className="card mx-auto mt-10 max-w-sm space-y-4 p-6 text-center">
+        <MailCheck className="mx-auto size-10 text-emerald-300" aria-hidden />
+        <h1 className="text-xl font-bold text-white">Check your email</h1>
+        <p className="text-sm text-slate-300">
+          We sent a confirmation link to <strong className="text-white">{awaitingConfirmation}</strong>. Open it to
+          activate your account; you will be signed in here. You cannot sign in until the address is confirmed.
+        </p>
+        <p className="text-xs text-slate-400">No email after a few minutes? Check your spam folder.</p>
+        <button
+          type="button"
+          className="btn w-full"
+          onClick={() => {
+            setAwaitingConfirmation(null);
+            setMode('sign-in');
+            setMessage(null);
+          }}
+        >
+          Back to sign in
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="card mx-auto mt-10 max-w-sm space-y-4 p-6">

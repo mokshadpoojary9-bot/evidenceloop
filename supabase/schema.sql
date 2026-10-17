@@ -304,6 +304,46 @@ begin
   end loop;
 end $$;
 
+-- ---------- Health check ----------
+-- Read by `npm run check:supabase` with the secret key only. Reports catalog state the
+-- REST API cannot show: RLS per table, policy counts, Realtime tables, the review trigger.
+
+create or replace function public.evidenceloop_schema_report()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'rls', (
+      select coalesce(jsonb_object_agg(c.relname, c.relrowsecurity), '{}'::jsonb)
+      from pg_catalog.pg_class c
+      join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r'
+    ),
+    'policies', (
+      select coalesce(jsonb_object_agg(p.tablename, p.total), '{}'::jsonb)
+      from (
+        select tablename, count(*) as total from pg_catalog.pg_policies
+        where schemaname = 'public' group by tablename
+      ) p
+    ),
+    'realtime', (
+      select coalesce(jsonb_agg(t.tablename), '[]'::jsonb)
+      from pg_catalog.pg_publication_tables t
+      where t.pubname = 'supabase_realtime' and t.schemaname = 'public'
+    ),
+    'reviewTrigger', exists (
+      select 1 from pg_catalog.pg_trigger
+      where tgname = 'reviews_enforce_roles' and not tgisinternal
+    )
+  );
+$$;
+
+revoke all on function public.evidenceloop_schema_report() from public, anon, authenticated;
+grant execute on function public.evidenceloop_schema_report() to service_role;
+
 -- ---------- Storage ----------
 -- Private bucket. No storage policies are defined, so the browser cannot read or
 -- write it directly; the backend uploads files and hands out short-lived signed URLs.
@@ -311,3 +351,6 @@ end $$;
 insert into storage.buckets (id, name, public)
 values ('evidence', 'evidence', false)
 on conflict (id) do nothing;
+
+-- Make the REST API see the tables and functions above immediately.
+notify pgrst, 'reload schema';

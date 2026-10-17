@@ -108,7 +108,9 @@ export function createEngine(db: Db, provider: AiProvider | null): Engine {
     const openRequests = (await db.list('evidence_requests', { workOrderId, status: 'OPEN' })).filter(
       (request) => (request.requestedBy ?? 'agent') === 'agent',
     );
-    const targets = selectTargets(requirements, evidence, trigger);
+    const added = trigger.type === 'new_evidence' ? evidence.find((item) => item.id === trigger.evidenceId) : undefined;
+    const answered = added?.requestId ? await db.get('evidence_requests', added.requestId) : null;
+    const targets = selectTargets(requirements, added, answered);
 
     const analysisRun: AnalysisRun = {
       id: randomUUID(),
@@ -332,19 +334,21 @@ export function createEngine(db: Db, provider: AiProvider | null): Engine {
 }
 
 /**
- * A manual run re-evaluates everything. New evidence re-evaluates every requirement
- * that is not yet proven, plus any requirement the new file's kind is relevant to —
- * including already-PROVEN ones, since new evidence can contradict an earlier decision.
+ * Which requirements a run assesses. A manual run assesses all of them. New evidence
+ * re-assesses only the requirements it affects: those named by the request it answers,
+ * and those whose evidence needs list its kind (proven ones included, since new evidence
+ * can contradict them). Evidence that matches nothing re-assesses every unproven
+ * requirement, so new evidence is never ignored.
  */
-function selectTargets(requirements: Requirement[], evidence: Evidence[], trigger: Trigger) {
-  if (trigger.type === 'manual') return requirements;
-  const added = evidence.find((item) => item.id === trigger.evidenceId);
+function selectTargets(requirements: Requirement[], added: Evidence | undefined, answered: EvidenceRequest | null) {
   if (!added) return requirements;
-  return requirements.filter(
+  const requested = new Set(answered?.requirementIds ?? []);
+  const affected = requirements.filter(
     (requirement) =>
-      requirement.status !== 'PROVEN' ||
+      requested.has(requirement.id) ||
       requirement.evidenceNeeds.some((need: EvidenceNeed) => need.kind === added.kind),
   );
+  return affected.length > 0 ? affected : requirements.filter((requirement) => requirement.status !== 'PROVEN');
 }
 
 function completionSummary(

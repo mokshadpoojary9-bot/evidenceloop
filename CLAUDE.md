@@ -39,6 +39,14 @@ were completed. It is not an image classifier. The core question is always:
 ## Platform rules
 
 - **Supabase** for database, authentication and evidence storage. Do not introduce Firebase.
+- Supabase is **verified live** (2026-10-18): `npm run check:supabase` passed every check (auth
+  with email confirmation, tables, columns, RLS, policies, Realtime, review trigger, private
+  `evidence` bucket), and an end-to-end run with real Nemotron passed. `supabase/schema.sql` is
+  idempotent; after changing it, the user must run the whole file in the SQL editor.
+- Auth → URL Configuration for local dev: Site URL `http://localhost:5173`, Redirect URLs
+  `http://localhost:5173/**` (add the Vercel URL the same way when deployed).
+- Make an existing account a reviewer (SQL editor, one line):
+  `insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'you@example.com' on conflict (id) do update set role = excluded.role;`
 - Stack: Vite, React, TypeScript, Tailwind, React Router, Framer Motion, Three.js / React Three
   Fiber (frontend); Node.js, Express, TypeScript (backend). Avoid unnecessary rewrites.
 - Deployment targets (later): frontend → Vercel, backend → Render.

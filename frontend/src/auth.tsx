@@ -9,8 +9,22 @@ interface AuthState {
   loading: boolean;
   session: Session | null;
   signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (email: string, password: string) => Promise<string | null>;
+  signUp: (email: string, password: string) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
+}
+
+export type SignUpResult =
+  | { error: string }
+  /** No session yet: the account must be confirmed from the emailed link first. */
+  | { error: null; confirmEmail: boolean };
+
+/** Friendlier wording for the Supabase Auth errors people actually hit. */
+function authMessage(message: string): string {
+  if (/email not confirmed/i.test(message)) {
+    return 'Your email address is not confirmed yet. Open the link in the confirmation email, then sign in.';
+  }
+  if (/invalid login credentials/i.test(message)) return 'Wrong email or password.';
+  return message;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -36,11 +50,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       signIn: async (email, password) => {
         const { error } = await supabase!.auth.signInWithPassword({ email, password });
-        return error?.message ?? null;
+        return error ? authMessage(error.message) : null;
       },
       signUp: async (email, password) => {
-        const { error } = await supabase!.auth.signUp({ email, password });
-        return error?.message ?? null;
+        // The confirmation link returns here; this origin must be listed under
+        // Supabase → Authentication → URL Configuration → Redirect URLs.
+        const { data, error } = await supabase!.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/login` },
+        });
+        if (error) return { error: authMessage(error.message) };
+        return { error: null, confirmEmail: data.session === null };
       },
       signOut: async () => {
         await supabase?.auth.signOut();

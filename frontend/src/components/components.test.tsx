@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { assessment, detail, NO_PERMISSIONS, review, system } from '../test/fixtures';
 import { EvidenceViewer } from './EvidenceViewer';
+import { Login } from './Login';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS } from './labels';
 import { ReviewPanel } from './ReviewPanel';
 import { StatusBadge } from './StatusBadge';
@@ -11,6 +12,15 @@ import { AiBanner, AiPill } from './SystemStatus';
 
 const apiMock = vi.hoisted(() => ({ submitForReview: vi.fn(), decideReview: vi.fn() }));
 vi.mock('../api', () => ({ api: apiMock, fileUrl: (url: string | null) => url }));
+const authMock = vi.hoisted(() => ({
+  enabled: true,
+  loading: false,
+  session: null,
+  signIn: vi.fn(),
+  signUp: vi.fn(),
+  signOut: vi.fn(),
+}));
+vi.mock('../auth', () => ({ useAuth: () => authMock }));
 
 beforeEach(() => {
   apiMock.submitForReview.mockReset().mockResolvedValue({});
@@ -138,5 +148,36 @@ describe('EvidenceViewer', () => {
   it('is closed when nothing is selected', () => {
     render(<EvidenceViewer detail={withObservation} aiMode="nebius" target={null} onNavigate={() => {}} onClose={() => {}} />);
     expect(screen.queryByText('test.mp4')).toBeNull();
+  });
+});
+
+describe('Login', () => {
+  const fill = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.type(screen.getByLabelText('Email'), 'tech@example.com');
+    await user.type(screen.getByLabelText('Password'), 'secret-password');
+  };
+
+  it('tells a new user to confirm their email after sign-up', async () => {
+    authMock.signUp.mockReset().mockResolvedValue({ error: null, confirmEmail: true });
+    const user = userEvent.setup();
+    render(<MemoryRouter><Login /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: /Need an account/ }));
+    await fill(user);
+    await user.click(screen.getByRole('button', { name: 'Sign up' }));
+
+    expect(authMock.signUp).toHaveBeenCalledWith('tech@example.com', 'secret-password');
+    expect(screen.getByRole('heading', { name: 'Check your email' })).toBeTruthy();
+    expect(screen.getByText('tech@example.com')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Back to sign in' }));
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeTruthy();
+  });
+
+  it('shows sign-in errors', async () => {
+    authMock.signIn.mockReset().mockResolvedValue('Your email address is not confirmed yet.');
+    const user = userEvent.setup();
+    render(<MemoryRouter><Login /></MemoryRouter>);
+    await fill(user);
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(screen.getByText('Your email address is not confirmed yet.')).toBeTruthy();
   });
 });

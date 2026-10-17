@@ -79,6 +79,25 @@ function setup(provider: AiProvider | null) {
 describe('demo scenario: replace emergency light in Room 204 (DEV fixture provider)', () => {
   const { api, create, upload, detail, statuses } = setup(new DevFixtureProvider(0));
 
+  it('re-analyzes only the requirements new evidence affects, even when nothing is proven', async () => {
+    const id = await create();
+    await upload(id, 'before_photo');
+    expect((await api.post(`/api/work-orders/${id}/analyze`)).status).toBe(202);
+    let d = await detail(id);
+    expect(statuses(d)).not.toContain('PROVEN');
+
+    // The video affects the two requirements that list a video (#5, #6), not all six.
+    await upload(id, 'video');
+    d = await detail(id);
+    expect(d.runs[1]!.requirementIds).toEqual([d.requirements[4]!.id, d.requirements[5]!.id]);
+
+    // Evidence that no requirement asks for still re-assesses every unproven requirement.
+    const unproven = d.requirements.filter((r) => r.status !== 'PROVEN').map((r) => r.id);
+    await upload(id, 'transcript');
+    d = await detail(id);
+    expect(d.runs[2]!.requirementIds).toEqual(unproven);
+  });
+
   it('runs the full loop: analyze → request minimum evidence → new evidence → re-analyze → verified', async () => {
     const id = await create();
 

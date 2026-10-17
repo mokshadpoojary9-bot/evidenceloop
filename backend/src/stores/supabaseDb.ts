@@ -3,7 +3,7 @@ import type { Db, TableName, Tables } from './db.js';
 
 // The application uses camelCase fields; Postgres columns are snake_case.
 // Only top-level keys are converted — jsonb column contents stay as written.
-const toSnake = (key: string) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+export const toSnake = (key: string) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const toCamel = (key: string) => key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 
 const mapKeys = (row: object, convert: (key: string) => string) =>
