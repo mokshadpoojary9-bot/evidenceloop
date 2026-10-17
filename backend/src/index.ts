@@ -22,8 +22,9 @@ const system: SystemStatus = {
   maxUploadMb: env.MAX_UPLOAD_MB,
 };
 
-const engine = createEngine(db, createAiProvider(files));
-const app = createApp({ db, files, engine, supabase, system, corsOrigins });
+const ai = createAiProvider(files);
+const engine = createEngine(db, ai);
+const app = createApp({ db, files, engine, ai, supabase, system, corsOrigins });
 
 app.listen(env.PORT, () => {
   // Startup log reports modes only. Keys and URLs are never printed.

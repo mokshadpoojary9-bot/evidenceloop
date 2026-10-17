@@ -73,6 +73,23 @@ With the DEV fixture enabled:
 
 Adding `#contradict` to an upload's note makes the fixture simulate a contradiction (DEV ONLY).
 
+## Requirements from an SOP
+
+On the new-work-order form, or on an existing work order, upload an SOP or manual (PDF with a text
+layer, or plain text) and click **Generate requirements**:
+
+1. The backend extracts the text (`POST /api/requirements/draft`; nothing is stored) and asks
+   Nemotron to propose requirements: title, description, mandatory yes/no, and the evidence that
+   would prove each one.
+2. Every proposal must quote the SOP passage it comes from. `agent/sopDraft.ts` drops any
+   proposal whose quote is not in the document, so the model cannot invent requirements.
+3. You review, edit and delete proposals in the browser. Only when you confirm are they saved
+   (`POST /api/work-orders/:id/requirements`), with an audit event naming the source file.
+
+With the DEV fixture the list is simulated — step-like lines copied verbatim from the SOP, with a
+keyword guess at the evidence — and is labelled as such. Scanned PDFs without a text layer are
+refused (422), and with no AI configured drafting is refused (503) rather than faked.
+
 ## Managing work orders
 
 - **List** — search (title, location, description), filter by status or archived, sort by
@@ -247,6 +264,5 @@ Vite), and set the three `VITE_*` variables.
 - Live Nebius/Nemotron verification (blocked on the API key) and prompt tuning against real output
 - Audio transcription (audio and video soundtracks are "attached but not inspected") and OCR for
   scanned PDFs
-- Deriving requirements from an uploaded SOP instead of a fixed template
 - Reviewer sign-off for contradicted work orders; roles beyond a single owner
 - Frontend tests

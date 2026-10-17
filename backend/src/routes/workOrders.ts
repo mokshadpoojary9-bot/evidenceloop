@@ -4,6 +4,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import { audit, now } from '../agent/audit.js';
 import type { Engine } from '../agent/engine.js';
+import { overallStatus } from '../agent/policy.js';
 import { currentUser } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
 import type { Db } from '../stores/db.js';
@@ -55,6 +56,14 @@ const newWorkOrderSchema = z.object({
   location: z.string().trim().max(200).default(''),
   templateId: z.string().nullish(),
   requirements: z.array(requirementSchema).max(50).default([]),
+});
+
+const addRequirementsSchema = z.object({
+  requirements: z.array(requirementSchema).min(1, 'Confirm at least one requirement').max(50),
+  source: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('sop'), fileName: z.string().trim().min(1).max(300), simulated: z.boolean() }),
+    z.object({ kind: z.literal('manual') }),
+  ]),
 });
 
 const editWorkOrderSchema = z
@@ -239,6 +248,66 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
       .type('application/pdf')
       .set('Content-Disposition', `attachment; filename="${name}"`)
       .send(pdf);
+  });
+
+  // Saves requirements a person has reviewed and confirmed (e.g. proposals drafted from an SOP).
+  router.post('/:id/requirements', async (req, res) => {
+    const user = currentUser(res);
+    const workOrder = await getOwnedWorkOrder(db, idParam(req.params.id), user.id);
+    assertNotArchived(workOrder);
+    if (workOrder.status === 'ANALYZING') throw new HttpError(409, 'Wait for the verification run to finish');
+    const input = addRequirementsSchema.parse(req.body);
+
+    const existing = await db.list('requirements', { workOrderId: workOrder.id }, 'position');
+    if (existing.length + input.requirements.length > 50) {
+      throw new HttpError(400, 'A work order can have at most 50 requirements');
+    }
+    const timestamp = now();
+    const added: Requirement[] = input.requirements.map((requirement, index) => ({
+      id: randomUUID(),
+      workOrderId: workOrder.id,
+      position: existing.length + index + 1,
+      ...requirement,
+      status: 'NOT_PROVEN',
+      currentAssessmentId: null,
+      updatedAt: timestamp,
+    }));
+    await db.insert('requirements', added);
+
+    const { source } = input;
+    await audit(db, {
+      workOrderId: workOrder.id,
+      actor: `user:${user.id}`,
+      type: 'REQUIREMENTS_ADDED',
+      summary:
+        `${added.length} requirement(s) added after review` +
+        (source.kind === 'sop'
+          ? ` — drafted from SOP "${source.fileName}"${source.simulated ? ' by the DEV fixture (simulated, not AI)' : ''}.`
+          : '.') +
+        ` ${CANNOT_VERIFY}`,
+      data: {
+        source,
+        requirements: added.map((r) => ({ id: r.id, title: r.title, mandatory: r.mandatory })),
+      },
+    });
+
+    // New requirements start NOT_PROVEN, so a verified work order is no longer verified.
+    const runs = await db.list('analysis_runs', { workOrderId: workOrder.id });
+    if (runs.length > 0) {
+      const status = overallStatus([...existing, ...added]);
+      if (status !== workOrder.status) {
+        await db.update('work_orders', workOrder.id, { status, updatedAt: now() });
+        await audit(db, {
+          workOrderId: workOrder.id,
+          actor: 'system',
+          type: 'STATUS_CHANGED',
+          summary: `Work order status ${workOrder.status} → ${status}: the checklist changed.`,
+          data: { from: workOrder.status, to: status },
+        });
+      }
+    }
+
+    res.status(201).json(await getWorkOrderDetail(db, files, (await db.get('work_orders', workOrder.id))!));
   });
 
   router.post('/:id/analyze', async (req, res) => {

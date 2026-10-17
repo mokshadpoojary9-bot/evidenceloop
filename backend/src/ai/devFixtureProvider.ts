@@ -1,5 +1,5 @@
 import { CANNOT_VERIFY, EVIDENCE_KIND_LABELS, type Evidence } from '../types.js';
-import type { AiProvider, AssessInput, RawAssessment } from './provider.js';
+import type { AiProvider, AssessInput, DraftInput, RawAssessment } from './provider.js';
 
 /**
  * ============================== DEV ONLY ==============================
@@ -21,6 +21,12 @@ import type { AiProvider, AssessInput, RawAssessment } from './provider.js';
  */
 
 export const DEV_FIXTURE_LABEL = '[DEV FIXTURE — simulated, not AI inference]';
+
+/** Lines that look like SOP steps: numbered, bulleted or "Step n". */
+const STEP_LINE = /^\s*(?:\d+[.)]|[-*•]|step\s+\d+[:.]?)\s+(.+)$/i;
+/** Fallback when the SOP has no step list: statements of duty. */
+const DUTY_LINE = /\b(must|shall|ensure|verify|confirm|check|install|test|record)\b/i;
+const MAX_FIXTURE_PROPOSALS = 10;
 export const CONTRADICT_TAG = '#contradict';
 
 export class DevFixtureProvider implements AiProvider {
@@ -31,6 +37,44 @@ export class DevFixtureProvider implements AiProvider {
   /** `delayMs` only makes the ANALYZING state visible in the UI during development. */
   constructor(private readonly delayMs = 1200) {}
 
+  /**
+   * DEV ONLY: picks step-like lines out of the SOP verbatim. No AI reads the
+   * document; the evidence kinds are a keyword guess, labelled as simulated.
+   */
+  async draftRequirements({ sopText }: DraftInput): Promise<unknown[]> {
+    if (this.delayMs > 0) await new Promise((done) => setTimeout(done, this.delayMs));
+    const lines = sopText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const steps = lines.flatMap((line) => {
+      const match = line.match(STEP_LINE);
+      return match ? [{ quote: line, text: match[1]!.trim() }] : [];
+    });
+    const candidates =
+      steps.length > 0
+        ? steps
+        : lines.filter((line) => DUTY_LINE.test(line)).map((line) => ({ quote: line, text: line }));
+
+    return candidates
+      .filter((step) => step.text.length >= 4)
+      .slice(0, MAX_FIXTURE_PROPOSALS)
+      .map(({ quote, text }) => {
+        const title = text.replace(/[.;:]+$/, '').slice(0, 120);
+        const kind = /\b(test|function|illuminat|alarm|operat)/i.test(text)
+          ? 'video'
+          : /\b(wir|connect|terminal|mount|fix|bracket)/i.test(text)
+            ? 'additional_photo'
+            : 'after_photo';
+        return {
+          title,
+          description: `${DEV_FIXTURE_LABEL} Copied verbatim from the SOP; no AI interpreted it.`,
+          mandatory: steps.length > 0 || /\b(must|shall|required)\b/i.test(text),
+          evidenceNeeds: [{ kind, instruction: `Upload evidence that shows: ${title}.` }],
+          sourceQuote: quote,
+        };
+      });
+  }
   async assess({ requirements, evidence }: AssessInput): Promise<RawAssessment[]> {
     if (this.delayMs > 0) await new Promise((done) => setTimeout(done, this.delayMs));
 

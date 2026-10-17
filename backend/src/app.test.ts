@@ -9,9 +9,11 @@ import type { AiProvider } from './ai/provider.js';
 import { createApp } from './app.js';
 import { LocalFileStore } from './stores/fileStore.js';
 import { LocalDb } from './stores/localDb.js';
+import { makePdf } from './test/fixtures.js';
 import {
   CANNOT_VERIFY,
   type EvidenceKind,
+  type RequirementDraftResponse,
   type SystemStatus,
   type WorkOrderDetail,
 } from './types.js';
@@ -49,7 +51,7 @@ function setup(provider: AiProvider | null) {
     auth: 'disabled',
     maxUploadMb: 1,
   };
-  const app = createApp({ db, files, engine, supabase: null, system, corsOrigins: [] });
+  const app = createApp({ db, files, engine, ai: provider, supabase: null, system, corsOrigins: [] });
   const api = request(app);
 
   const create = async () => {
@@ -193,6 +195,7 @@ describe('a provider that overclaims', () => {
     id: 'nebius-nemotron',
     model: 'test-double',
     simulated: false,
+    draftRequirements: async () => [],
     assess: async ({ requirements }) =>
       requirements.map((r) => ({
         requirementId: r.id,
@@ -222,6 +225,7 @@ describe('a provider that fails', () => {
     id: 'nebius-nemotron',
     model: 'test-double',
     simulated: false,
+    draftRequirements: async () => [],
     assess: async () => {
       throw new Error('upstream unavailable');
     },
@@ -335,5 +339,112 @@ describe('work order management', () => {
     expect(flat).toContain('DEV ONLY');
     expect(flat).toContain('ANALYSIS_COMPLETED');
     expect(flat).toContain(CANNOT_VERIFY);
+  });
+});
+
+describe('SOP → requirements (DEV fixture provider)', () => {
+  const { api, create, upload, detail } = setup(new DevFixtureProvider(0));
+  const SOP_LINES = [
+    'Emergency light replacement SOP',
+    '1. The replacement unit must be model EL-200.',
+    '2. Fix the unit to the wall bracket with all four screws.',
+    '3. Press the test button; the lamp shall illuminate.',
+  ];
+
+  const draft = (file: Buffer, contentType: string, filename: string) =>
+    api.post('/api/requirements/draft').field('title', 'Replace emergency light').attach('file', file, { filename, contentType });
+
+  it('drafts a clearly simulated list from a PDF without saving anything', async () => {
+    const id = await create();
+    const before = (await detail(id)).requirements.length;
+
+    const res = await draft(makePdf([SOP_LINES.join('\n')]), 'application/pdf', 'sop.pdf');
+    expect(res.status).toBe(200);
+    const body = res.body as RequirementDraftResponse;
+    expect(body.simulated).toBe(true);
+    expect(body.provider).toBe('dev-fixture');
+    expect(body.source).toMatchObject({ fileName: 'sop.pdf', pages: 1, truncated: false });
+    expect(body.proposals.map((p) => p.sourceQuote)).toEqual(SOP_LINES.slice(1));
+    expect(body.proposals.every((p) => p.description.includes('DEV FIXTURE'))).toBe(true);
+    expect(body.proposals.map((p) => p.evidenceNeeds[0]!.kind)).toEqual(['after_photo', 'additional_photo', 'video']);
+
+    expect((await detail(id)).requirements.length).toBe(before);
+  });
+
+  it('drafts from a plain-text SOP', async () => {
+    const res = await draft(Buffer.from(SOP_LINES.join('\n')), 'text/plain', 'sop.txt');
+    expect(res.status).toBe(200);
+    expect((res.body as RequirementDraftResponse).proposals).toHaveLength(3);
+  });
+
+  it('refuses a scanned PDF with no text layer', async () => {
+    const res = await draft(makePdf(['']), 'application/pdf', 'scan.pdf');
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('NO_TEXT');
+  });
+
+  it('saves only the confirmed requirements and re-opens a verified work order', async () => {
+    const id = await create();
+    for (const kind of ['before_photo', 'after_photo', 'document', 'additional_photo', 'video'] as const) {
+      await upload(id, kind);
+    }
+    await api.post(`/api/work-orders/${id}/analyze`);
+    expect((await detail(id)).workOrder.status).toBe('VERIFIED');
+
+    const res = await api.post(`/api/work-orders/${id}/requirements`).send({
+      requirements: [
+        {
+          title: 'Lamp illuminates on test',
+          description: 'Edited by the reviewer of the draft',
+          mandatory: true,
+          evidenceNeeds: [{ kind: 'video', instruction: 'Film the test.' }],
+        },
+      ],
+      source: { kind: 'sop', fileName: 'sop.pdf', simulated: true },
+    });
+    expect(res.status).toBe(201);
+    const d = res.body as WorkOrderDetail;
+    expect(d.requirements).toHaveLength(7);
+    expect(d.requirements[6]).toMatchObject({ position: 7, title: 'Lamp illuminates on test', status: 'NOT_PROVEN' });
+    expect(d.workOrder.status).toBe('NEEDS_EVIDENCE');
+    const added = d.audit.find((event) => event.type === 'REQUIREMENTS_ADDED')!;
+    expect(added.summary).toContain('DEV fixture (simulated, not AI)');
+    expect(d.audit.at(-1)).toMatchObject({ type: 'STATUS_CHANGED' });
+
+    expect((await api.post(`/api/work-orders/${id}/requirements`).send({ requirements: [], source: { kind: 'manual' } })).status).toBe(400);
+  });
+});
+
+describe('SOP drafting with a provider that invents requirements', () => {
+  const inventing: AiProvider = {
+    id: 'nebius-nemotron',
+    model: 'test-double',
+    simulated: false,
+    assess: async () => [],
+    draftRequirements: async () => [
+      { title: 'Model EL-200', mandatory: true, evidenceNeeds: [], sourceQuote: 'The replacement unit must be model EL-200.' },
+      { title: 'Torque bracket to 5 Nm', mandatory: true, evidenceNeeds: [], sourceQuote: 'Torque the bracket to 5 Nm.' },
+    ],
+  };
+  const { api } = setup(inventing);
+
+  it('drops proposals the SOP does not support', async () => {
+    const res = await api
+      .post('/api/requirements/draft')
+      .attach('file', Buffer.from('1. The replacement unit must be model EL-200.'), { filename: 's.txt', contentType: 'text/plain' });
+    expect(res.body.proposals.map((p: { title: string }) => p.title)).toEqual(['Model EL-200']);
+    expect(res.body.dropped).toBe(1);
+    expect(res.body.simulated).toBe(false);
+  });
+});
+
+describe('SOP drafting without AI', () => {
+  const { api } = setup(null);
+  it('is refused rather than faked', async () => {
+    const res = await api
+      .post('/api/requirements/draft')
+      .attach('file', Buffer.from('1. Do the thing.'), { filename: 's.txt', contentType: 'text/plain' });
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('AI_NOT_CONFIGURED');
   });
 });

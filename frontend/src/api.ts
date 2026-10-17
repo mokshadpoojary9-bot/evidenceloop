@@ -1,7 +1,9 @@
 import { supabase } from './lib/supabase';
 import type {
+  AddRequirementsInput,
   EvidenceKind,
   NewWorkOrderInput,
+  RequirementDraftResponse,
   SystemStatus,
   UploadEvidenceResponse,
   WorkOrder,
@@ -89,6 +91,16 @@ export const api = {
   unarchive: (id: string) => request<WorkOrderDetail>(`/api/work-orders/${id}/unarchive`, { method: 'POST' }),
   deleteWorkOrder: (id: string) => request<void>(`/api/work-orders/${id}`, { method: 'DELETE' }),
   downloadReport: (id: string) => download(`/api/work-orders/${id}/report.pdf`, 'evidenceloop-report.pdf'),
+  draftRequirements: (file: File, context: { title: string; description: string; location: string }) => {
+    const form = new FormData();
+    form.set('title', context.title);
+    form.set('description', context.description);
+    form.set('location', context.location);
+    form.set('file', file);
+    return request<RequirementDraftResponse>('/api/requirements/draft', { method: 'POST', body: form });
+  },
+  addRequirements: (id: string, input: AddRequirementsInput) =>
+    request<WorkOrderDetail>(`/api/work-orders/${id}/requirements`, { method: 'POST', body: JSON.stringify(input) }),
   analyze: (id: string) =>
     request<{ runId: string | null; queued: boolean }>(`/api/work-orders/${id}/analyze`, {
       method: 'POST',

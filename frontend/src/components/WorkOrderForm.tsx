@@ -1,42 +1,30 @@
-import { ArrowLeft, LoaderCircle, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, LoaderCircle, Plus } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api } from '../api';
+import { useSystem } from '../hooks';
+import type { WorkOrderTemplate } from '../types';
 import {
-  EVIDENCE_KINDS,
-  EVIDENCE_KIND_LABELS,
-  type EvidenceKind,
-  type EvidenceNeed,
-  type WorkOrderTemplate,
-} from '../types';
-
-interface DraftRequirement {
-  key: number;
-  title: string;
-  description: string;
-  mandatory: boolean;
-  evidenceNeeds: EvidenceNeed[];
-}
-
-let nextKey = 0;
-const blankRequirement = (): DraftRequirement => ({
-  key: nextKey++,
-  title: '',
-  description: '',
-  mandatory: true,
-  evidenceNeeds: [],
-});
+  blankRequirement,
+  draftKey,
+  RequirementEditor,
+  toRequirementInput,
+  type DraftRequirement,
+} from './RequirementEditor';
+import { SopDraftPanel } from './SopDraftPanel';
 
 const CUSTOM = 'custom';
 
 export function WorkOrderForm() {
   const navigate = useNavigate();
+  const { system } = useSystem();
   const [templates, setTemplates] = useState<WorkOrderTemplate[]>([]);
   const [templateId, setTemplateId] = useState(CUSTOM);
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [requirements, setRequirements] = useState<DraftRequirement[]>(() => [blankRequirement()]);
+  const [sopOpen, setSopOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +34,7 @@ export function WorkOrderForm() {
     setTitle(template.title);
     setLocation(template.location);
     setDescription(template.description);
-    setRequirements(template.requirements.map((requirement) => ({ key: nextKey++, ...requirement })));
+    setRequirements(template.requirements.map((requirement) => ({ key: draftKey(), ...requirement })));
   };
 
   // Start from the demo scenario; it is one click to switch to a blank work order.
@@ -63,14 +51,14 @@ export function WorkOrderForm() {
   const update = (key: number, patch: Partial<DraftRequirement>) =>
     setRequirements((items) => items.map((item) => (item.key === key ? { ...item, ...patch } : item)));
 
-  const toggleNeed = (requirement: DraftRequirement, kind: EvidenceKind) => {
-    const has = requirement.evidenceNeeds.some((need) => need.kind === kind);
-    update(requirement.key, {
-      evidenceNeeds: has
-        ? requirement.evidenceNeeds.filter((need) => need.kind !== kind)
-        : // The instruction is filled in from the title when the form is submitted.
-          [...requirement.evidenceNeeds, { kind, instruction: '' }],
+  // Reviewed SOP proposals join the list; a single untouched blank row is replaced.
+  const addFromSop = async (proposals: DraftRequirement[]) => {
+    setRequirements((items) => {
+      const untouched = items.length === 1 && !items[0]!.title.trim() && items[0]!.evidenceNeeds.length === 0;
+      return [...(untouched ? [] : items), ...proposals];
     });
+    setTemplateId(CUSTOM);
+    setSopOpen(false);
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -83,15 +71,7 @@ export function WorkOrderForm() {
         location,
         description,
         templateId: templateId === CUSTOM ? null : templateId,
-        requirements: requirements.map(({ key: _key, ...requirement }) => ({
-          ...requirement,
-          evidenceNeeds: requirement.evidenceNeeds.map((need) => ({
-            kind: need.kind,
-            instruction:
-              need.instruction ||
-              `Upload ${EVIDENCE_KIND_LABELS[need.kind].toLowerCase()} evidence that demonstrates: ${requirement.title}.`,
-          })),
-        })),
+        requirements: requirements.map(toRequirementInput),
       });
       navigate(`/work-orders/${created.workOrder.id}`);
     } catch (err) {
@@ -172,64 +152,40 @@ export function WorkOrderForm() {
           />
         </label>
 
+        <section className="rounded-xl border border-line">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold"
+            aria-expanded={sopOpen}
+            onClick={() => setSopOpen((open) => !open)}
+          >
+            Generate requirements from an SOP or manual
+            <ChevronDown className={`size-4 text-slate-500 transition-transform ${sopOpen ? 'rotate-180' : ''}`} aria-hidden />
+          </button>
+          {sopOpen && (
+            <div className="border-t border-line p-4">
+              <SopDraftPanel
+                context={{ title, description, location }}
+                aiAvailable={system !== null && system.ai.mode !== 'unconfigured'}
+                maxUploadMb={system?.maxUploadMb ?? null}
+                confirmLabel={(count) => `Add ${count} to this work order`}
+                onConfirm={addFromSop}
+              />
+            </div>
+          )}
+        </section>
+
         <fieldset className="space-y-3">
           <legend className="eyebrow mb-2">Requirements ({requirements.length})</legend>
           {requirements.map((requirement, index) => (
-            <div key={requirement.key} className="rounded-xl border border-line bg-ink-800 p-3">
-              <div className="flex items-center gap-2">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-ink-700 text-xs font-bold">
-                  {index + 1}
-                </span>
-                <input
-                  className="input"
-                  aria-label={`Requirement ${index + 1} title`}
-                  value={requirement.title}
-                  onChange={(event) => update(requirement.key, { title: event.target.value })}
-                  placeholder="What must be true for this task to be complete?"
-                  maxLength={200}
-                  required
-                />
-                <label className="flex shrink-0 items-center gap-1.5 text-xs text-slate-300">
-                  <input
-                    type="checkbox"
-                    className="accent-accent"
-                    checked={requirement.mandatory}
-                    onChange={(event) => update(requirement.key, { mandatory: event.target.checked })}
-                  />
-                  Mandatory
-                </label>
-                <button
-                  type="button"
-                  className="btn px-2 py-2"
-                  aria-label={`Remove requirement ${index + 1}`}
-                  disabled={requirements.length === 1}
-                  onClick={() => setRequirements((items) => items.filter((item) => item.key !== requirement.key))}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-8">
-                <span className="text-xs text-slate-400">Evidence that would prove it:</span>
-                {EVIDENCE_KINDS.map((kind) => {
-                  const selected = requirement.evidenceNeeds.some((need) => need.kind === kind);
-                  return (
-                    <button
-                      key={kind}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => toggleNeed(requirement, kind)}
-                      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
-                        selected
-                          ? 'border-accent/60 bg-accent/15 text-accent'
-                          : 'border-line text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {EVIDENCE_KIND_LABELS[kind]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <RequirementEditor
+              key={requirement.key}
+              index={index}
+              value={requirement}
+              onChange={(patch) => update(requirement.key, patch)}
+              onRemove={() => setRequirements((items) => items.filter((item) => item.key !== requirement.key))}
+              removable={requirements.length > 1}
+            />
           ))}
           <button type="button" className="btn" onClick={() => setRequirements((items) => [...items, blankRequirement()])}>
             <Plus className="size-4" aria-hidden /> Add requirement

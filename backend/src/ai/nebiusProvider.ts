@@ -5,7 +5,7 @@ import type { FileStore } from '../stores/fileStore.js';
 import { CANNOT_VERIFY, EVIDENCE_KINDS, EVIDENCE_KIND_LABELS, type Evidence } from '../types.js';
 import { formatTimestamp } from './format.js';
 import { parseModelJson } from './modelJson.js';
-import type { AiProvider, AssessInput } from './provider.js';
+import type { AiProvider, AssessInput, DraftInput } from './provider.js';
 
 /**
  * Production AI provider: NVIDIA Nemotron served by Nebius Token Factory.
@@ -60,6 +60,30 @@ Respond with a single JSON object and nothing else:
 }
 Return exactly one assessment for every requirement you are given.`;
 
+const DRAFT_PROMPT = `You are EvidenceLoop. From an SOP or equipment manual, you propose the requirements a technician must prove with evidence for a work order. A person will review, edit and confirm your list before anything is saved.
+
+Rules you must follow:
+- Only propose requirements the SOP text actually states. Never invent steps, values, models or tolerances.
+- For each requirement, copy the exact SOP sentence it comes from into "sourceQuote", verbatim (you may shorten it with "..." between verbatim fragments). Proposals whose quote is not in the SOP are discarded.
+- Each requirement must be something evidence can prove or disprove: an observable state or an action that can be recorded.
+- "mandatory" is true when the SOP says must, shall or required; false for should, may or recommended.
+- For each requirement, list the evidence that would prove it, as specific instructions a technician can follow on site. Allowed kinds: ${EVIDENCE_KINDS.map((kind) => `"${kind}"`).join(', ')}.
+- Prefer a few precise requirements over many vague ones. At most 20.
+- Never state or imply that following the SOP guarantees safety.
+
+Respond with a single JSON object and nothing else:
+{
+  "requirements": [
+    {
+      "title": "<short, checkable statement>",
+      "description": "<what must be true, in the SOP's terms>",
+      "mandatory": true | false,
+      "evidenceNeeds": [ { "kind": "<kind>", "instruction": "<specific request>" } ],
+      "sourceQuote": "<verbatim SOP text>"
+    }
+  ]
+}`;
+
 export class NebiusNemotronProvider implements AiProvider {
   readonly id = 'nebius-nemotron' as const;
   readonly simulated = false;
@@ -102,20 +126,44 @@ export class NebiusNemotronProvider implements AiProvider {
       { role: 'user', content: parts },
     ];
 
-    let completion: string;
-    try {
-      completion = await chatCompletion(this.config, messages, { jsonMode: true });
-    } catch (error) {
-      // Not every model accepts response_format; the prompt already demands JSON, so retry without it.
-      if (!(error instanceof NebiusError && error.code === 'BAD_REQUEST' && /response_format|json/i.test(error.message))) {
-        throw error;
-      }
-      completion = await chatCompletion(this.config, messages);
-    }
-    const parsed = parseModelJson(completion);
+    const parsed = parseModelJson(await this.complete(messages));
     const assessments = (parsed as { assessments?: unknown })?.assessments;
     // Anything malformed is handed to the policy as "no valid assessment" → NOT_PROVEN.
     return Array.isArray(assessments) ? assessments : [];
+  }
+
+  async draftRequirements({ sopText, truncated, context }: DraftInput): Promise<unknown[]> {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: DRAFT_PROMPT },
+      {
+        role: 'user',
+        content: [
+          ...(context.title ? [`WORK ORDER: ${context.title}`] : []),
+          ...(context.location ? [`LOCATION: ${context.location}`] : []),
+          ...(context.description ? [`DESCRIPTION: ${context.description}`] : []),
+          '',
+          `SOP / MANUAL TEXT${truncated ? ` (first ${MAX_TEXT_CHARS} characters only; the rest was not supplied)` : ''}:`,
+          '"""',
+          sopText,
+          '"""',
+        ].join('\n'),
+      },
+    ];
+    const parsed = parseModelJson(await this.complete(messages));
+    const requirements = parsed?.requirements;
+    return Array.isArray(requirements) ? requirements : [];
+  }
+
+  /** JSON-mode completion, retried without response_format for models that reject it. */
+  private async complete(messages: ChatMessage[]): Promise<string> {
+    try {
+      return await chatCompletion(this.config, messages, { jsonMode: true });
+    } catch (error) {
+      if (!(error instanceof NebiusError && error.code === 'BAD_REQUEST' && /response_format|json/i.test(error.message))) {
+        throw error;
+      }
+      return chatCompletion(this.config, messages);
+    }
   }
 
   private async describeEvidence(item: Evidence): Promise<ContentPart[]> {

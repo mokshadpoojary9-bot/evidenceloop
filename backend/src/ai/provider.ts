@@ -16,6 +16,15 @@ export interface AssessInput {
   evidence: Evidence[];
 }
 
+export interface DraftInput {
+  /** Text extracted from the SOP/manual, already capped. */
+  sopText: string;
+  /** True when the SOP was longer than the text supplied. */
+  truncated: boolean;
+  /** What the work order is about, to focus the proposals. May be blank. */
+  context: { title: string; description: string; location: string };
+}
+
 /** What a provider is expected to return for each requirement. */
 export interface RawAssessment {
   requirementId: string;
@@ -41,4 +50,9 @@ export interface AiProvider {
   /** True for the DEV ONLY fixture: its output is simulated, not AI inference. */
   readonly simulated: boolean;
   assess(input: AssessInput): Promise<unknown[]>;
+  /**
+   * Proposes requirements from an SOP. Returns raw proposals; `agent/sopDraft.ts`
+   * validates them and drops any whose quote is not in the SOP.
+   */
+  draftRequirements(input: DraftInput): Promise<unknown[]>;
 }

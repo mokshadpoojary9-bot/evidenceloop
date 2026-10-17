@@ -2,9 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import express from 'express';
 import type { Engine } from './agent/engine.js';
+import type { AiProvider } from './ai/provider.js';
 import { createAuth } from './middleware/auth.js';
 import { errorHandler, HttpError, notFound } from './middleware/errors.js';
 import { createSystemRouter } from './routes/health.js';
+import { createRequirementsRouter } from './routes/requirements.js';
 import { createWorkOrdersRouter } from './routes/workOrders.js';
 import type { Db } from './stores/db.js';
 import { LocalFileStore, type FileStore } from './stores/fileStore.js';
@@ -14,13 +16,15 @@ export interface AppDeps {
   db: Db;
   files: FileStore;
   engine: Engine;
+  /** The same provider the engine uses; null when AI is not configured. */
+  ai: AiProvider | null;
   /** Null in local development, which runs without authentication. */
   supabase: SupabaseClient | null;
   system: SystemStatus;
   corsOrigins: string[];
 }
 
-export function createApp({ db, files, engine, supabase, system, corsOrigins }: AppDeps) {
+export function createApp({ db, files, engine, ai, supabase, system, corsOrigins }: AppDeps) {
   const app = express();
 
   app.disable('x-powered-by');
@@ -47,6 +51,12 @@ export function createApp({ db, files, engine, supabase, system, corsOrigins }: 
     '/api/work-orders',
     createAuth(supabase),
     createWorkOrdersRouter({ db, files, engine, maxUploadMb: system.maxUploadMb }),
+  );
+
+  app.use(
+    '/api/requirements',
+    createAuth(supabase),
+    createRequirementsRouter({ ai, maxUploadMb: system.maxUploadMb }),
   );
 
   app.use(notFound);

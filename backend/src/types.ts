@@ -226,6 +226,28 @@ export interface NewWorkOrderInput {
   requirements: TemplateRequirement[];
 }
 
+/** A requirement proposed from an SOP. Nothing is saved until a person confirms it. */
+export interface RequirementProposal extends TemplateRequirement {
+  /** The SOP passage the requirement was taken from, verbatim. */
+  sourceQuote: string;
+}
+
+export interface RequirementDraftResponse {
+  proposals: RequirementProposal[];
+  /** True when the DEV ONLY fixture produced the list — no AI read the SOP. */
+  simulated: boolean;
+  provider: ProviderId;
+  model: string | null;
+  source: { fileName: string; pages: number | null; chars: number; truncated: boolean };
+  /** Proposals discarded because their quote was not found in the SOP, or they were malformed. */
+  dropped: number;
+}
+
+export interface AddRequirementsInput {
+  requirements: TemplateRequirement[];
+  source: { kind: 'sop'; fileName: string; simulated: boolean } | { kind: 'manual' };
+}
+
 export interface WorkOrderSummary extends WorkOrder {
   requirementStatuses: RequirementStatus[];
   openRequestCount: number;

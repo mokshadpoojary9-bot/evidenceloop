@@ -10,6 +10,7 @@ import { EvidenceRequests } from './EvidenceRequests';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS, formatDate } from './labels';
 import { LoopVisual } from './LoopVisual';
 import { RequirementCard } from './RequirementCard';
+import { SopRequirementsSection } from './SopRequirementsSection';
 import { StatusBadge } from './StatusBadge';
 import { AiBanner } from './SystemStatus';
 import { WorkOrderActions } from './WorkOrderActions';
@@ -133,6 +134,10 @@ export function WorkOrderDetail() {
               ))}
             </ul>
           </section>
+
+          {!archived && !analyzing && (
+            <SopRequirementsSection workOrder={workOrder} system={system} onSaved={() => void refresh()} />
+          )}
         </div>
 
         <aside className="space-y-5">
