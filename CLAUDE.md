@@ -28,10 +28,11 @@ were completed. It is not an image classifier. The core question is always:
 
 - Production AI is **NVIDIA Nemotron via Nebius Token Factory**, and nothing else. Never add
   OpenAI, Anthropic, Gemini, Groq, OpenRouter, Hugging Face inference or any other provider.
-- Nebius access is **pending**. Do not block development on it, do not invent credentials, and do
-  not ask for the key.
-- The Nemotron integration must stay explicitly marked **not configured / not verified** — in the
-  code, the UI and the docs — until a genuine connection and a live inference test have succeeded.
+- Nebius access is **available and verified live** (2026-10-17, `nvidia/Nemotron-3.5-Super-VL`,
+  `npm run check:nebius` passed). The key lives only in `backend/.env`; never print, log or commit
+  it, and do not invent credentials.
+- Each running backend must still prove its own connection: the UI says "connected" only after
+  that backend's startup live test passes, and shows **not configured / not verified** otherwise.
 - The DEV ONLY fixture (`backend/src/ai/devFixtureProvider.ts`) is not AI inference. Everything it
   produces must stay flagged `simulated` and labelled as such. It must never run in production.
 

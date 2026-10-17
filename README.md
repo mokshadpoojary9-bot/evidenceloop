@@ -16,17 +16,18 @@ evidence arrives it re-analyzes the requirements that evidence affects.
 Production AI is **NVIDIA Nemotron served by Nebius Token Factory**. It is the only inference
 provider in this project; no other AI API or SDK is used or may be added.
 
-**Nebius is currently disabled because no API key is available yet.** Until `NEBIUS_API_KEY` and
-`NEBIUS_MODEL` are set on the backend:
+**Nebius has been verified live** (2026-10-17) with `nvidia/Nemotron-3.5-Super-VL`:
+`npm run check:nebius` passed (text and image), and a real verification run and a real SOP draft
+went through the adapter and the policy with no corrections needed. On deliberately useless
+evidence (a blank photo, a test-pattern video, an unverified install sheet) the model returned
+`NOT_PROVEN` for every requirement with the required "cannot verify" sentence.
+
+Each deployment still has to prove its own connection. If `NEBIUS_API_KEY` and `NEBIUS_MODEL` are
+not set on a backend:
 
 - the API and dashboard report "Production AI is not configured";
 - verification runs are refused (`503 AI_NOT_CONFIGURED`) — nothing is ever marked proven;
 - everything else works: work orders, checklists, evidence upload, audit trail.
-
-The Nebius adapter (`backend/src/ai/nebiusProvider.ts`) is written and unit-tested against
-simulated responses (code-fenced JSON, reasoning text before the answer, 401/404/429/5xx,
-timeouts), but has **not been run against the live service**. Expect to tune the prompt once a key
-exists.
 
 When Nebius is configured, the backend runs a live connection test at startup (one small text
 request, one small image request). The dashboard says **"Production AI: NVIDIA Nemotron via
@@ -307,7 +308,6 @@ Vite), and set the three `VITE_*` variables.
 
 ## Not built yet
 
-- Live Nebius/Nemotron verification (blocked on the API key) and prompt tuning against real output
 - Audio transcription (audio and video soundtracks are "attached but not inspected") and OCR for
   scanned PDFs. Only NVIDIA Nemotron via Nebius may be used, so both wait for a Nemotron model
   that accepts audio or page images to be confirmed on Token Factory
