@@ -4,6 +4,7 @@ import type {
   NewWorkOrderInput,
   SystemStatus,
   UploadEvidenceResponse,
+  WorkOrder,
   WorkOrderDetail,
   WorkOrderSummary,
   WorkOrderTemplate,
@@ -27,7 +28,7 @@ interface ErrorBody {
   issues?: { path: string; message: string }[];
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function send(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
 
@@ -50,7 +51,24 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       body.code,
     );
   }
-  return (await response.json()) as T;
+  return response;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await send(path, init);
+  return (response.status === 204 ? undefined : await response.json()) as T;
+}
+
+/** Saves a response body as a file in the browser. */
+async function download(path: string, fallbackName: string) {
+  const response = await send(path);
+  const name = response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await response.blob());
+  const link = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 /** Local-development file URLs are relative to the API; signed Supabase URLs are absolute. */
@@ -65,6 +83,12 @@ export const api = {
   getWorkOrder: (id: string) => request<WorkOrderDetail>(`/api/work-orders/${id}`),
   createWorkOrder: (input: NewWorkOrderInput) =>
     request<WorkOrderDetail>('/api/work-orders', { method: 'POST', body: JSON.stringify(input) }),
+  editWorkOrder: (id: string, patch: Partial<Pick<WorkOrder, 'title' | 'description' | 'location'>>) =>
+    request<WorkOrderDetail>(`/api/work-orders/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  archive: (id: string) => request<WorkOrderDetail>(`/api/work-orders/${id}/archive`, { method: 'POST' }),
+  unarchive: (id: string) => request<WorkOrderDetail>(`/api/work-orders/${id}/unarchive`, { method: 'POST' }),
+  deleteWorkOrder: (id: string) => request<void>(`/api/work-orders/${id}`, { method: 'DELETE' }),
+  downloadReport: (id: string) => download(`/api/work-orders/${id}/report.pdf`, 'evidenceloop-report.pdf'),
   analyze: (id: string) =>
     request<{ runId: string | null; queued: boolean }>(`/api/work-orders/${id}/analyze`, {
       method: 'POST',

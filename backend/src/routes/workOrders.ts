@@ -8,6 +8,7 @@ import { currentUser } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
 import type { Db } from '../stores/db.js';
 import type { FileStore } from '../stores/fileStore.js';
+import { renderWorkOrderReport } from '../reports/workOrderReport.js';
 import {
   getOwnedWorkOrder,
   getWorkOrderDetail,
@@ -56,6 +57,15 @@ const newWorkOrderSchema = z.object({
   requirements: z.array(requirementSchema).max(50).default([]),
 });
 
+const editWorkOrderSchema = z
+  .object({
+    title: z.string().trim().min(1, 'Title is required').max(200),
+    description: z.string().trim().max(5000),
+    location: z.string().trim().max(200),
+  })
+  .partial()
+  .strict();
+
 const uploadFieldsSchema = z.object({
   kind: z.enum(EVIDENCE_KINDS),
   note: z.string().trim().max(1000).default(''),
@@ -69,6 +79,13 @@ const idParam = (value: unknown) => {
 };
 
 const safeFileName = (name: string) => name.replace(/[^\w.-]+/g, '_').slice(-120) || 'file';
+
+/** Archived work orders are a closed record: no edits, uploads or runs until unarchived. */
+function assertNotArchived(workOrder: WorkOrder) {
+  if (workOrder.archivedAt) {
+    throw new HttpError(409, 'This work order is archived. Unarchive it to make changes.', 'ARCHIVED');
+  }
+}
 
 export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkOrderRouteDeps) {
   const router = Router();
@@ -106,6 +123,7 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
       templateId: template?.id ?? null,
       status: 'AWAITING_EVIDENCE',
       simulated: false,
+      archivedAt: null,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -145,9 +163,88 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
     res.json(await getWorkOrderDetail(db, files, workOrder));
   });
 
+  router.patch('/:id', async (req, res) => {
+    const user = currentUser(res);
+    const workOrder = await getOwnedWorkOrder(db, idParam(req.params.id), user.id);
+    assertNotArchived(workOrder);
+    const patch = editWorkOrderSchema.parse(req.body);
+    const changes = (Object.keys(patch) as (keyof typeof patch)[]).filter(
+      (key) => patch[key] !== undefined && patch[key] !== workOrder[key],
+    );
+    if (changes.length > 0) {
+      await db.update('work_orders', workOrder.id, { ...patch, updatedAt: now() });
+      await audit(db, {
+        workOrderId: workOrder.id,
+        actor: `user:${user.id}`,
+        type: 'WORK_ORDER_EDITED',
+        summary: `Work order details edited: ${changes.join(', ')}.`,
+        data: Object.fromEntries(changes.map((key) => [key, { from: workOrder[key], to: patch[key] }])),
+      });
+    }
+    res.json(await getWorkOrderDetail(db, files, (await db.get('work_orders', workOrder.id))!));
+  });
+
+  router.post('/:id/archive', async (req, res) => {
+    const user = currentUser(res);
+    const workOrder = await getOwnedWorkOrder(db, idParam(req.params.id), user.id);
+    if (workOrder.status === 'ANALYZING') throw new HttpError(409, 'Wait for the verification run to finish');
+    if (!workOrder.archivedAt) {
+      await db.update('work_orders', workOrder.id, { archivedAt: now(), updatedAt: now() });
+      await audit(db, {
+        workOrderId: workOrder.id,
+        actor: `user:${user.id}`,
+        type: 'WORK_ORDER_ARCHIVED',
+        summary: 'Work order archived. It is read-only until unarchived.',
+      });
+    }
+    res.json(await getWorkOrderDetail(db, files, (await db.get('work_orders', workOrder.id))!));
+  });
+
+  router.post('/:id/unarchive', async (req, res) => {
+    const user = currentUser(res);
+    const workOrder = await getOwnedWorkOrder(db, idParam(req.params.id), user.id);
+    if (workOrder.archivedAt) {
+      await db.update('work_orders', workOrder.id, { archivedAt: null, updatedAt: now() });
+      await audit(db, {
+        workOrderId: workOrder.id,
+        actor: `user:${user.id}`,
+        type: 'WORK_ORDER_UNARCHIVED',
+        summary: 'Work order unarchived.',
+      });
+    }
+    res.json(await getWorkOrderDetail(db, files, (await db.get('work_orders', workOrder.id))!));
+  });
+
+  // Permanently removes the work order, its evidence files and its audit trail.
+  router.delete('/:id', async (req, res) => {
+    const user = currentUser(res);
+    const workOrder = await getOwnedWorkOrder(db, idParam(req.params.id), user.id);
+    if (workOrder.status === 'ANALYZING') throw new HttpError(409, 'Wait for the verification run to finish');
+    const evidence = await db.list('evidence', { workOrderId: workOrder.id });
+    await files.remove(evidence.map((item) => item.storagePath));
+    // Children first, so the local store matches Postgres' ON DELETE CASCADE.
+    for (const table of ['audit_events', 'evidence_requests', 'assessments', 'analysis_runs', 'evidence', 'requirements'] as const) {
+      await db.delete(table, { workOrderId: workOrder.id });
+    }
+    await db.delete('work_orders', { id: workOrder.id });
+    console.log(`Work order ${workOrder.id} deleted by user ${user.id}`);
+    res.status(204).end();
+  });
+
+  router.get('/:id/report.pdf', async (req, res) => {
+    const workOrder = await getOwnedWorkOrder(db, idParam(req.params.id), currentUser(res).id);
+    const pdf = await renderWorkOrderReport(await getWorkOrderDetail(db, files, workOrder));
+    const name = `evidenceloop-report-${safeFileName(workOrder.title).slice(0, 60)}.pdf`;
+    res
+      .type('application/pdf')
+      .set('Content-Disposition', `attachment; filename="${name}"`)
+      .send(pdf);
+  });
+
   router.post('/:id/analyze', async (req, res) => {
     const user = currentUser(res);
     const workOrder = await getOwnedWorkOrder(db, idParam(req.params.id), user.id);
+    assertNotArchived(workOrder);
     const result = await engine.start(workOrder.id, { type: 'manual', actor: `user:${user.id}` });
     res.status(202).json(result);
   });
@@ -155,6 +252,7 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
   router.post('/:id/evidence', upload.single('file'), async (req, res) => {
     const user = currentUser(res);
     const workOrder = await getOwnedWorkOrder(db, idParam(req.params.id), user.id);
+    assertNotArchived(workOrder);
     const fields = uploadFieldsSchema.parse(req.body);
     const file = req.file;
     if (!file) throw new HttpError(400, 'A file is required');

@@ -9,8 +9,11 @@ import type { FileStore } from './fileStore.js';
 export async function getOwnedWorkOrder(db: Db, id: string, ownerId: string): Promise<WorkOrder> {
   const workOrder = await db.get('work_orders', id);
   if (!workOrder || workOrder.ownerId !== ownerId) throw new HttpError(404, 'Work order not found');
-  return workOrder;
+  return normalize(workOrder);
 }
+
+/** Rows written before a column existed (local store) get its default. */
+const normalize = (workOrder: WorkOrder): WorkOrder => ({ ...workOrder, archivedAt: workOrder.archivedAt ?? null });
 
 export async function listWorkOrderSummaries(db: Db, ownerId: string): Promise<WorkOrderSummary[]> {
   const workOrders = await db.list('work_orders', { ownerId }, 'createdAt');
@@ -21,7 +24,7 @@ export async function listWorkOrderSummaries(db: Db, ownerId: string): Promise<W
         db.list('evidence_requests', { workOrderId: workOrder.id, status: 'OPEN' }),
       ]);
       return {
-        ...workOrder,
+        ...normalize(workOrder),
         requirementStatuses: requirements.map((requirement) => requirement.status),
         openRequestCount: openRequests.length,
       };

@@ -110,6 +110,10 @@ create table if not exists public.audit_events (
   created_at timestamptz not null
 );
 
+-- ---------- Migrations for databases created by an earlier version of this file ----------
+
+alter table public.work_orders add column if not exists archived_at timestamptz;
+
 create index if not exists work_orders_owner_idx on public.work_orders (owner_id, created_at desc);
 create index if not exists requirements_work_order_idx on public.requirements (work_order_id, position);
 create index if not exists evidence_work_order_idx on public.evidence (work_order_id, created_at);

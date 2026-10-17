@@ -73,6 +73,20 @@ With the DEV fixture enabled:
 
 Adding `#contradict` to an upload's note makes the fixture simulate a contradiction (DEV ONLY).
 
+## Managing work orders
+
+- **List** — search (title, location, description), filter by status or archived, sort by
+  newest, oldest or recently updated.
+- **Edit** — title, location and description. Every change is written to the audit trail with
+  its old and new value.
+- **Archive** — makes the work order read-only (no uploads, edits or verification runs) and
+  hides it from the default list. Unarchive to resume.
+- **Delete** — permanent, after a confirmation dialog: removes the work order, its evidence files,
+  decisions and audit trail. Archive instead to keep the record.
+- **Export PDF** — `GET /api/work-orders/:id/report.pdf`: requirements, evidence (with SHA-256),
+  observations, decisions, evidence requests and the full audit trail, with the disclaimer that
+  EvidenceLoop does not replace qualified inspectors. DEV fixture results are labelled simulated.
+
 ## Architecture
 
 ```

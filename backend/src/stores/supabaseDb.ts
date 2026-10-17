@@ -24,6 +24,12 @@ export class SupabaseDb implements Db {
     if (error) throw new Error(`Supabase update of ${table} failed: ${error.message}`);
   }
 
+  async delete<T extends TableName>(table: T, where: Partial<Tables[T]>) {
+    if (Object.keys(where).length === 0) throw new Error('Refusing to delete without a condition');
+    const { error } = await this.client.from(table).delete().match(mapKeys(where, toSnake));
+    if (error) throw new Error(`Supabase delete from ${table} failed: ${error.message}`);
+  }
+
   async get<T extends TableName>(table: T, id: string) {
     const { data, error } = await this.client.from(table).select('*').eq('id', id).maybeSingle();
     if (error) throw new Error(`Supabase read from ${table} failed: ${error.message}`);

@@ -262,3 +262,78 @@ describe('production AI not configured', () => {
     expect((await api.get('/api/work-orders/11111111-1111-4111-8111-111111111111')).status).toBe(404);
   });
 });
+
+describe('work order management', () => {
+  const { api, create, upload, detail } = setup(new DevFixtureProvider(0));
+
+  it('edits details and records the change in the audit trail', async () => {
+    const id = await create();
+    const res = await api.patch(`/api/work-orders/${id}`).send({ title: 'Replace emergency light in Room 205', location: 'Room 205' });
+    expect(res.status).toBe(200);
+    const d = res.body as WorkOrderDetail;
+    expect(d.workOrder).toMatchObject({ title: 'Replace emergency light in Room 205', location: 'Room 205' });
+    expect(d.audit.at(-1)).toMatchObject({ type: 'WORK_ORDER_EDITED' });
+    expect(d.audit.at(-1)!.data.title).toEqual({ from: 'Replace emergency light in Room 204', to: 'Replace emergency light in Room 205' });
+
+    expect((await api.patch(`/api/work-orders/${id}`).send({ title: '' })).status).toBe(400);
+    expect((await api.patch(`/api/work-orders/${id}`).send({ ownerId: 'someone-else' })).status).toBe(400);
+  });
+
+  it('makes archived work orders read-only until unarchived', async () => {
+    const id = await create();
+    const archived = await api.post(`/api/work-orders/${id}/archive`);
+    expect(archived.body.workOrder.archivedAt).toEqual(expect.any(String));
+
+    expect((await upload(id, 'after_photo')).status).toBe(409);
+    expect((await api.post(`/api/work-orders/${id}/analyze`)).status).toBe(409);
+    expect((await api.patch(`/api/work-orders/${id}`).send({ title: 'x' })).status).toBe(409);
+
+    const list = (await api.get('/api/work-orders')).body.workOrders as { id: string; archivedAt: string | null }[];
+    expect(list.find((w) => w.id === id)?.archivedAt).toEqual(expect.any(String));
+
+    await api.post(`/api/work-orders/${id}/unarchive`);
+    expect((await upload(id, 'after_photo')).status).toBe(201);
+    const types = (await detail(id)).audit.map((event) => event.type);
+    expect(types).toEqual(expect.arrayContaining(['WORK_ORDER_ARCHIVED', 'WORK_ORDER_UNARCHIVED']));
+  });
+
+  it('deletes a work order with its evidence files', async () => {
+    const id = await create();
+    await upload(id, 'after_photo');
+    const fileUrl = (await detail(id)).evidence[0]!.url!;
+    expect((await api.get(fileUrl)).status).toBe(200);
+
+    expect((await api.delete(`/api/work-orders/${id}`)).status).toBe(204);
+    expect((await api.get(`/api/work-orders/${id}`)).status).toBe(404);
+    expect((await api.get(fileUrl)).status).toBe(404);
+    const list = (await api.get('/api/work-orders')).body.workOrders as { id: string }[];
+    expect(list.some((w) => w.id === id)).toBe(false);
+  });
+
+  it('exports a PDF report with requirements, evidence, audit trail, disclaimer and simulated labels', async () => {
+    const id = await create();
+    await upload(id, 'after_photo', 'unit fitted');
+    await api.post(`/api/work-orders/${id}/analyze`);
+    await detail(id);
+
+    const res = await api.get(`/api/work-orders/${id}/report.pdf`).buffer(true).parse((response, callback) => {
+      const chunks: Buffer[] = [];
+      response.on('data', (chunk: Buffer) => chunks.push(chunk));
+      response.on('end', () => callback(null, Buffer.concat(chunks)));
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('application/pdf');
+    expect(res.headers['content-disposition']).toMatch(/attachment; filename="evidenceloop-report-.*\.pdf"/);
+
+    const { extractText, getDocumentProxy } = await import('unpdf');
+    const { text } = await extractText(await getDocumentProxy(new Uint8Array(res.body as Buffer)), { mergePages: true });
+    const flat = text.replace(/\s+/g, ' ');
+    expect(flat).toContain('Replace emergency light in Room 204');
+    expect(flat).toContain('Correct emergency light installed');
+    expect(flat).toContain('after_photo.bin');
+    expect(flat).toContain('does not replace qualified inspectors');
+    expect(flat).toContain('DEV ONLY');
+    expect(flat).toContain('ANALYSIS_COMPLETED');
+    expect(flat).toContain(CANNOT_VERIFY);
+  });
+});

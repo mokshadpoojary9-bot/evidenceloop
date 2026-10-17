@@ -15,6 +15,8 @@ interface Props {
   workOrderId: string;
   evidence: WorkOrderDetail['evidence'];
   maxUploadMb: number | null;
+  /** When set, the upload form is replaced by this explanation. */
+  readOnlyReason: string | null;
   /** The evidence request being answered, if the user clicked "Upload" on one. */
   respondingTo: EvidenceRequest | null;
   onClearRequest: () => void;
@@ -28,7 +30,15 @@ const OUTCOME_MESSAGE: Record<ReanalysisOutcome, string> = {
   skipped_ai_not_configured: 'Uploaded. It was not analysed: production AI is not configured.',
 };
 
-export function EvidencePanel({ workOrderId, evidence, maxUploadMb, respondingTo, onClearRequest, onUploaded }: Props) {
+export function EvidencePanel({
+  workOrderId,
+  evidence,
+  maxUploadMb,
+  readOnlyReason,
+  respondingTo,
+  onClearRequest,
+  onUploaded,
+}: Props) {
   const [kind, setKind] = useState<EvidenceKind>('before_photo');
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState('');
@@ -119,75 +129,79 @@ export function EvidencePanel({ workOrderId, evidence, maxUploadMb, respondingTo
         </ul>
       )}
 
-      <form ref={form} onSubmit={handleSubmit} className="mt-4 space-y-3 border-t border-line pt-4">
-        {respondingTo && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2.5 text-xs text-amber-100">
-            <p className="flex-1">
-              <strong>Answering request:</strong> {respondingTo.instruction}
+      {readOnlyReason ? (
+        <p className="mt-4 border-t border-line pt-4 text-sm text-slate-400">{readOnlyReason} Uploads are disabled.</p>
+      ) : (
+        <form ref={form} onSubmit={handleSubmit} className="mt-4 space-y-3 border-t border-line pt-4">
+          {respondingTo && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2.5 text-xs text-amber-100">
+              <p className="flex-1">
+                <strong>Answering request:</strong> {respondingTo.instruction}
+              </p>
+              <button type="button" onClick={onClearRequest} aria-label="Stop answering this request">
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+          )}
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">Evidence type</span>
+            <select
+              className="input"
+              value={kind}
+              disabled={respondingTo !== null}
+              onChange={(event) => {
+                setKind(event.target.value as EvidenceKind);
+                setFile(null);
+                if (fileInput.current) fileInput.current.value = '';
+              }}
+            >
+              {EVIDENCE_KINDS.map((value) => (
+                <option key={value} value={value}>
+                  {EVIDENCE_KIND_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">File</span>
+            <input
+              ref={fileInput}
+              type="file"
+              accept={EVIDENCE_ACCEPT[kind]}
+              required
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              className="input file:mr-3 file:rounded-md file:border-0 file:bg-ink-700 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-slate-100"
+            />
+            {tooLarge && <span className="mt-1 block text-xs text-rose-300">Larger than the {maxUploadMb} MB limit.</span>}
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">
+              Note <span className="font-normal text-slate-500">(optional)</span>
+            </span>
+            <input
+              className="input"
+              value={note}
+              maxLength={1000}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Context for a reviewer — treated as a claim, not as proof"
+            />
+          </label>
+
+          <button type="submit" className="btn btn-primary w-full" disabled={!file || tooLarge || busy}>
+            {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Upload className="size-4" aria-hidden />}
+            {busy ? 'Uploading…' : 'Upload evidence'}
+          </button>
+
+          {message && (
+            <p role="status" className={`text-xs ${message.error ? 'text-rose-300' : 'text-slate-300'}`}>
+              {message.text}
             </p>
-            <button type="button" onClick={onClearRequest} aria-label="Stop answering this request">
-              <X className="size-4" aria-hidden />
-            </button>
-          </div>
-        )}
-
-        <label className="block text-sm">
-          <span className="mb-1 block font-semibold">Evidence type</span>
-          <select
-            className="input"
-            value={kind}
-            disabled={respondingTo !== null}
-            onChange={(event) => {
-              setKind(event.target.value as EvidenceKind);
-              setFile(null);
-              if (fileInput.current) fileInput.current.value = '';
-            }}
-          >
-            {EVIDENCE_KINDS.map((value) => (
-              <option key={value} value={value}>
-                {EVIDENCE_KIND_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block text-sm">
-          <span className="mb-1 block font-semibold">File</span>
-          <input
-            ref={fileInput}
-            type="file"
-            accept={EVIDENCE_ACCEPT[kind]}
-            required
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            className="input file:mr-3 file:rounded-md file:border-0 file:bg-ink-700 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-slate-100"
-          />
-          {tooLarge && <span className="mt-1 block text-xs text-rose-300">Larger than the {maxUploadMb} MB limit.</span>}
-        </label>
-
-        <label className="block text-sm">
-          <span className="mb-1 block font-semibold">
-            Note <span className="font-normal text-slate-500">(optional)</span>
-          </span>
-          <input
-            className="input"
-            value={note}
-            maxLength={1000}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="Context for a reviewer — treated as a claim, not as proof"
-          />
-        </label>
-
-        <button type="submit" className="btn btn-primary w-full" disabled={!file || tooLarge || busy}>
-          {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Upload className="size-4" aria-hidden />}
-          {busy ? 'Uploading…' : 'Upload evidence'}
-        </button>
-
-        {message && (
-          <p role="status" className={`text-xs ${message.error ? 'text-rose-300' : 'text-slate-300'}`}>
-            {message.text}
-          </p>
-        )}
-      </form>
+          )}
+        </form>
+      )}
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -8,6 +8,7 @@ export interface FileStore {
   read(path: string): Promise<Buffer>;
   /** A URL the browser can load the file from, or null if none can be produced. */
   url(path: string): Promise<string | null>;
+  remove(paths: string[]): Promise<void>;
 }
 
 /** Private Supabase Storage bucket; the browser only ever receives short-lived signed URLs. */
@@ -31,6 +32,12 @@ export class SupabaseFileStore implements FileStore {
   async url(path: string) {
     const { data } = await this.client.storage.from(this.bucket).createSignedUrl(path, 60 * 60);
     return data?.signedUrl ?? null;
+  }
+
+  async remove(paths: string[]) {
+    if (paths.length === 0) return;
+    const { error } = await this.client.storage.from(this.bucket).remove(paths);
+    if (error) throw new Error(`Supabase Storage delete failed: ${error.message}`);
   }
 }
 
@@ -62,6 +69,10 @@ export class LocalFileStore implements FileStore {
 
   async read(path: string) {
     return readFile(this.mustResolve(path));
+  }
+
+  async remove(paths: string[]) {
+    for (const path of paths) await rm(this.mustResolve(path), { force: true });
   }
 
   async url(path: string) {

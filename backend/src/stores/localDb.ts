@@ -39,6 +39,15 @@ export class LocalDb implements Db {
     this.save();
   }
 
+  async delete<T extends TableName>(table: T, where: Partial<Tables[T]>) {
+    const conditions = Object.entries(where) as [keyof Tables[T], unknown][];
+    if (conditions.length === 0) throw new Error('Refusing to delete without a condition');
+    this.data[table] = this.data[table].filter(
+      (row) => !conditions.every(([column, value]) => row[column] === value),
+    ) as Data[T];
+    this.save();
+  }
+
   async get<T extends TableName>(table: T, id: string) {
     const row = this.data[table].find((candidate) => candidate.id === id);
     return row ? structuredClone(row) : null;

@@ -1,4 +1,4 @@
-import { ArrowLeft, LoaderCircle, MapPin, Play, RefreshCw } from 'lucide-react';
+import { Archive, ArrowLeft, LoaderCircle, MapPin, Play, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { api } from '../api';
@@ -12,6 +12,7 @@ import { LoopVisual } from './LoopVisual';
 import { RequirementCard } from './RequirementCard';
 import { StatusBadge } from './StatusBadge';
 import { AiBanner } from './SystemStatus';
+import { WorkOrderActions } from './WorkOrderActions';
 
 export function WorkOrderDetail() {
   const { id = '' } = useParams();
@@ -39,6 +40,7 @@ export function WorkOrderDetail() {
   const hasRun = runs.length > 0;
   const proven = requirements.filter((r) => r.status === 'PROVEN').length;
   const lastRun = runs.at(-1);
+  const archived = workOrder.archivedAt !== null;
 
   const runVerification = async () => {
     setStarting(true);
@@ -61,6 +63,13 @@ export function WorkOrderDetail() {
 
       <AiBanner system={system} />
 
+      {archived && (
+        <p role="note" className="flex items-center gap-2 rounded-xl border border-line bg-ink-800 px-4 py-3 text-sm text-slate-300">
+          <Archive className="size-4 shrink-0" aria-hidden />
+          Archived {formatDate(workOrder.archivedAt!)}. This record is read-only until it is unarchived.
+        </p>
+      )}
+
       <header className="card flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-0 flex-1 basis-80">
           <p className="eyebrow">Work order</p>
@@ -77,13 +86,14 @@ export function WorkOrderDetail() {
         </div>
 
         <div className="flex flex-col items-start gap-2 sm:items-end">
+          <WorkOrderActions workOrder={workOrder} canManage onChanged={() => void refresh()} />
           <StatusBadge meta={meta} size="lg" simulated={workOrder.simulated && hasRun} />
           <p className="max-w-xs text-xs text-slate-400 sm:text-right">{meta.explanation}</p>
           <button
             className="btn btn-primary mt-1"
             onClick={() => void runVerification()}
-            disabled={!aiAvailable || analyzing || starting}
-            title={aiAvailable ? undefined : 'Production AI is not configured'}
+            disabled={!aiAvailable || analyzing || starting || archived}
+            title={archived ? 'Archived work orders are read-only' : aiAvailable ? undefined : 'Production AI is not configured'}
           >
             {analyzing || starting ? (
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
@@ -141,6 +151,7 @@ export function WorkOrderDetail() {
             workOrderId={workOrder.id}
             evidence={evidence}
             maxUploadMb={system?.maxUploadMb ?? null}
+            readOnlyReason={archived ? 'This work order is archived.' : null}
             respondingTo={respondingTo}
             onClearRequest={() => setRespondingTo(null)}
             onUploaded={() => void refresh()}

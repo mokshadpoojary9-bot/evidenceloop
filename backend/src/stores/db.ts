@@ -37,6 +37,8 @@ export const TABLE_NAMES: TableName[] = [
 export interface Db {
   insert<T extends TableName>(table: T, rows: Tables[T] | Tables[T][]): Promise<void>;
   update<T extends TableName>(table: T, id: string, patch: Partial<Tables[T]>): Promise<void>;
+  /** Deletes every row whose columns equal every value in `where` (which must not be empty). */
+  delete<T extends TableName>(table: T, where: Partial<Tables[T]>): Promise<void>;
   get<T extends TableName>(table: T, id: string): Promise<Tables[T] | null>;
   /** Rows whose columns equal every value in `where`, ordered by `orderBy` ascending. */
   list<T extends TableName>(

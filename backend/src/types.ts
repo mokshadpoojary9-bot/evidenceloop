@@ -51,6 +51,22 @@ export const EVIDENCE_KIND_MIME: Record<EvidenceKind, string[]> = {
   transcript: ['text/'],
 };
 
+export const REQUIREMENT_STATUS_LABELS: Record<RequirementStatus, string> = {
+  PROVEN: 'Proven',
+  NOT_PROVEN: 'Not proven',
+  UNCERTAIN: 'Uncertain',
+  CONTRADICTED: 'Contradicted',
+  ANALYZING: 'Analyzing',
+};
+
+export const WORK_ORDER_STATUS_LABELS: Record<WorkOrderStatus, string> = {
+  AWAITING_EVIDENCE: 'Awaiting evidence',
+  ANALYZING: 'Analyzing',
+  NEEDS_EVIDENCE: 'Not verified — evidence needed',
+  CONTRADICTED: 'Contradicted — review required',
+  VERIFIED: 'Verified',
+};
+
 /** The exact sentence used whenever a requirement cannot be verified. */
 export const CANNOT_VERIFY = 'I cannot verify this requirement from the available evidence.';
 
@@ -75,6 +91,8 @@ export interface WorkOrder {
   status: WorkOrderStatus;
   /** True when the current status came from the DEV ONLY fixture rather than real AI inference. */
   simulated: boolean;
+  /** Archived work orders are read-only and hidden from the default list. */
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
