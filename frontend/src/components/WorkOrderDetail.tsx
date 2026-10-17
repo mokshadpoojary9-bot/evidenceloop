@@ -10,6 +10,7 @@ import { EvidenceRequests } from './EvidenceRequests';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS, formatDate } from './labels';
 import { LoopVisual } from './LoopVisual';
 import { RequirementCard } from './RequirementCard';
+import { ReviewPanel } from './ReviewPanel';
 import { SopRequirementsSection } from './SopRequirementsSection';
 import { StatusBadge } from './StatusBadge';
 import { AiBanner } from './SystemStatus';
@@ -35,13 +36,21 @@ export function WorkOrderDetail() {
   }
   if (!detail) return <p className="p-10 text-center text-slate-400">Loading…</p>;
 
-  const { workOrder, requirements, evidence, requests, runs, audit } = detail;
+  const { workOrder, requirements, evidence, requests, runs, audit, permissions } = detail;
   const meta = WORK_ORDER_STATUS[workOrder.status];
   const aiAvailable = system !== null && system.ai.mode !== 'unconfigured';
   const hasRun = runs.length > 0;
   const proven = requirements.filter((r) => r.status === 'PROVEN').length;
   const lastRun = runs.at(-1);
   const archived = workOrder.archivedAt !== null;
+  const inReview = workOrder.status === 'IN_REVIEW';
+  const verifyBlocker = archived
+    ? 'Archived work orders are read-only'
+    : inReview
+      ? 'This work order is with a reviewer'
+      : !aiAvailable
+        ? 'Production AI is not configured'
+        : undefined;
 
   const runVerification = async () => {
     setStarting(true);
@@ -87,24 +96,26 @@ export function WorkOrderDetail() {
         </div>
 
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <WorkOrderActions workOrder={workOrder} canManage onChanged={() => void refresh()} />
+          <WorkOrderActions workOrder={workOrder} canManage={permissions.manage} onChanged={() => void refresh()} />
           <StatusBadge meta={meta} size="lg" simulated={workOrder.simulated && hasRun} />
           <p className="max-w-xs text-xs text-slate-400 sm:text-right">{meta.explanation}</p>
-          <button
-            className="btn btn-primary mt-1"
-            onClick={() => void runVerification()}
-            disabled={!aiAvailable || analyzing || starting || archived}
-            title={archived ? 'Archived work orders are read-only' : aiAvailable ? undefined : 'Production AI is not configured'}
-          >
-            {analyzing || starting ? (
-              <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            ) : hasRun ? (
-              <RefreshCw className="size-4" aria-hidden />
-            ) : (
-              <Play className="size-4" aria-hidden />
-            )}
-            {analyzing ? 'Analyzing…' : hasRun ? 'Re-run verification' : 'Run verification'}
-          </button>
+          {permissions.manage && (
+            <button
+              className="btn btn-primary mt-1"
+              onClick={() => void runVerification()}
+              disabled={verifyBlocker !== undefined || analyzing || starting}
+              title={verifyBlocker}
+            >
+              {analyzing || starting ? (
+                <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              ) : hasRun ? (
+                <RefreshCw className="size-4" aria-hidden />
+              ) : (
+                <Play className="size-4" aria-hidden />
+              )}
+              {analyzing ? 'Analyzing…' : hasRun ? 'Re-run verification' : 'Run verification'}
+            </button>
+          )}
           {actionError && <p className="max-w-xs text-xs text-rose-300 sm:text-right">{actionError}</p>}
         </div>
       </header>
@@ -117,7 +128,13 @@ export function WorkOrderDetail() {
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-5">
-          <EvidenceRequests requests={requests} requirements={requirements} onRespond={setRespondingTo} />
+          <ReviewPanel detail={detail} onChanged={() => void refresh()} />
+
+          <EvidenceRequests
+            requests={requests}
+            requirements={requirements}
+            onRespond={permissions.upload ? setRespondingTo : null}
+          />
 
           <section aria-labelledby="checklist-heading">
             <div className="mb-3 flex items-baseline justify-between">
@@ -135,7 +152,7 @@ export function WorkOrderDetail() {
             </ul>
           </section>
 
-          {!archived && !analyzing && (
+          {permissions.manage && !archived && !inReview && !analyzing && (
             <SopRequirementsSection workOrder={workOrder} system={system} onSaved={() => void refresh()} />
           )}
         </div>
@@ -156,7 +173,7 @@ export function WorkOrderDetail() {
             workOrderId={workOrder.id}
             evidence={evidence}
             maxUploadMb={system?.maxUploadMb ?? null}
-            readOnlyReason={archived ? 'This work order is archived.' : null}
+            readOnlyReason={permissions.reasons.upload ?? null}
             respondingTo={respondingTo}
             onClearRequest={() => setRespondingTo(null)}
             onUploaded={() => void refresh()}

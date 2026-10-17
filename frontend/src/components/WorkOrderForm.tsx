@@ -12,12 +12,14 @@ import {
   type DraftRequirement,
 } from './RequirementEditor';
 import { SopDraftPanel } from './SopDraftPanel';
+import { useViewer } from '../viewer';
 
 const CUSTOM = 'custom';
 
 export function WorkOrderForm() {
   const navigate = useNavigate();
   const { system } = useSystem();
+  const { viewer } = useViewer();
   const [templates, setTemplates] = useState<WorkOrderTemplate[]>([]);
   const [templateId, setTemplateId] = useState(CUSTOM);
   const [title, setTitle] = useState('');
@@ -79,6 +81,17 @@ export function WorkOrderForm() {
       setSubmitting(false);
     }
   };
+
+  if (viewer?.role === 'reviewer') {
+    return (
+      <div className="card mx-auto mt-10 max-w-lg p-6 text-center">
+        <p className="text-slate-300">Reviewers do not create work orders. Switch to a technician account to create one.</p>
+        <Link to="/work-orders" className="btn mt-4">
+          Back to work orders
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

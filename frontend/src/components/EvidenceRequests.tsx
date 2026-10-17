@@ -6,7 +6,8 @@ import { EVIDENCE_ICON } from './labels';
 interface Props {
   requests: EvidenceRequest[];
   requirements: Requirement[];
-  onRespond: (request: EvidenceRequest) => void;
+  /** Null when the viewer may not upload (e.g. a reviewer). */
+  onRespond: ((request: EvidenceRequest) => void) | null;
 }
 
 /** The agent's open requests: the minimum additional evidence needed to settle what is unproven. */
@@ -39,13 +40,16 @@ export function EvidenceRequests({ requests, requirements, onRespond }: Props) {
               <div className="min-w-0 flex-1 basis-64">
                 <p className="font-medium text-white">{request.instruction}</p>
                 <p className="mt-0.5 text-xs text-slate-400">
+                  {request.requestedBy === 'agent' ? 'Requested by the agent' : 'Requested by a reviewer'} ·{' '}
                   {EVIDENCE_KIND_LABELS[request.kind]} · would address requirement{positions.length === 1 ? '' : 's'}{' '}
                   {positions.join(', ')}
                 </p>
               </div>
-              <button className="btn btn-primary" onClick={() => onRespond(request)}>
-                <Upload className="size-4" aria-hidden /> Upload
-              </button>
+              {onRespond && (
+                <button className="btn btn-primary" onClick={() => onRespond(request)}>
+                  <Upload className="size-4" aria-hidden /> Upload
+                </button>
+              )}
             </motion.li>
           );
         })}

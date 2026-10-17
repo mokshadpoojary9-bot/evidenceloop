@@ -16,8 +16,18 @@ export const WORK_ORDER_STATUSES = [
   'NEEDS_EVIDENCE', // at least one mandatory requirement is not proven
   'CONTRADICTED', // evidence conflicts with a requirement — needs human review
   'VERIFIED', // every mandatory requirement is PROVEN
+  'IN_REVIEW', // submitted to a reviewer; frozen until a decision
+  'APPROVED', // a reviewer approved it although evidence did not prove everything — a human decision
+  'REJECTED', // a reviewer rejected the work
 ] as const;
 export type WorkOrderStatus = (typeof WORK_ORDER_STATUSES)[number];
+
+/** Work order statuses decided by the verification engine (as opposed to a reviewer). */
+export type ComputedStatus = Extract<WorkOrderStatus, 'ANALYZING' | 'NEEDS_EVIDENCE' | 'CONTRADICTED' | 'VERIFIED'>;
+
+export const ROLES = ['technician', 'reviewer'] as const;
+/** technician: creates work orders and uploads evidence. reviewer: reads all work orders, decides reviews. */
+export type Role = (typeof ROLES)[number];
 
 export const EVIDENCE_KINDS = [
   'before_photo',
@@ -65,6 +75,9 @@ export const WORK_ORDER_STATUS_LABELS: Record<WorkOrderStatus, string> = {
   NEEDS_EVIDENCE: 'Not verified — evidence needed',
   CONTRADICTED: 'Contradicted — review required',
   VERIFIED: 'Verified',
+  IN_REVIEW: 'In review',
+  APPROVED: 'Approved by reviewer (not AI-verified)',
+  REJECTED: 'Rejected by reviewer',
 };
 
 /** The exact sentence used whenever a requirement cannot be verified. */
@@ -178,7 +191,10 @@ export interface AnalysisRun {
 export interface EvidenceRequest {
   id: string;
   workOrderId: string;
-  runId: string;
+  /** The analysis run that planned it; null when a reviewer asked for it. */
+  runId: string | null;
+  /** `agent`, or `user:<id>` for a reviewer's request. */
+  requestedBy: string;
   requirementIds: string[];
   kind: EvidenceKind;
   instruction: string;
@@ -186,6 +202,30 @@ export interface EvidenceRequest {
   fulfilledByEvidenceId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export const REVIEW_DECISIONS = ['approve', 'reject', 'request_evidence'] as const;
+export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
+
+/** A request for human sign-off on a contradicted or uncertain work order. */
+export interface Review {
+  id: string;
+  workOrderId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EVIDENCE_REQUESTED';
+  /** The work order status when it was submitted. */
+  statusAtSubmission: WorkOrderStatus;
+  submittedBy: string;
+  submissionNote: string;
+  submittedAt: string;
+  reviewerId: string | null;
+  decisionNote: string | null;
+  decidedAt: string | null;
+}
+
+/** One row per user who is not a plain technician; `id` is the auth user id. */
+export interface UserRole {
+  id: string;
+  role: Role;
 }
 
 export interface AuditEvent {
@@ -260,6 +300,28 @@ export interface WorkOrderDetail {
   requests: EvidenceRequest[];
   runs: AnalysisRun[];
   audit: AuditEvent[];
+  reviews: Review[];
+  /** What the current user may do with this work order, decided by the backend. */
+  permissions: WorkOrderPermissions;
+}
+
+export interface WorkOrderPermissions {
+  /** Edit, archive, delete, add requirements, run verification. Owner technician only. */
+  manage: boolean;
+  upload: boolean;
+  submitForReview: boolean;
+  /** Decide the pending review. Reviewers only, never the person who submitted it. */
+  review: boolean;
+  /** Why an action is unavailable, for the UI. */
+  reasons: Partial<Record<'manage' | 'upload' | 'submitForReview' | 'review', string>>;
+}
+
+export interface Viewer {
+  id: string;
+  email: string | null;
+  role: Role;
+  /** `demo` = local development role switcher; `supabase` = assigned in public.user_roles. */
+  roleSource: 'demo' | 'supabase';
 }
 
 export type AiMode = 'nebius' | 'dev-fixture' | 'unconfigured';

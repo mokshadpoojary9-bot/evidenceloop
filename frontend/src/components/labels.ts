@@ -10,6 +10,9 @@ import {
   OctagonAlert,
   ShieldCheck,
   Upload,
+  UserCheck,
+  UserSearch,
+  UserX,
   type LucideIcon,
 } from 'lucide-react';
 import type { EvidenceKind, RequirementStatus, WorkOrderStatus } from '../types';
@@ -30,6 +33,7 @@ const tones = {
   amber: { chip: 'border-amber-400/30 bg-amber-400/10 text-amber-300', hex: '#fbbf24' },
   rose: { chip: 'border-rose-400/40 bg-rose-400/10 text-rose-300', hex: '#fb7185' },
   sky: { chip: 'border-sky-400/30 bg-sky-400/10 text-sky-300', hex: '#38bdf8' },
+  violet: { chip: 'border-violet-400/40 bg-violet-400/10 text-violet-200', hex: '#a78bfa' },
 };
 
 export const REQUIREMENT_STATUS: Record<RequirementStatus, StatusMeta> = {
@@ -72,6 +76,25 @@ export const WORK_ORDER_STATUS: Record<WorkOrderStatus, StatusMeta & { explanati
     ...tones.emerald,
     explanation:
       'Every mandatory requirement is supported by the evidence on file. This is not a safety certification.',
+  },
+  IN_REVIEW: {
+    label: 'In review',
+    icon: UserSearch,
+    ...tones.violet,
+    explanation: 'A reviewer is deciding. Evidence and requirements are frozen until they do.',
+  },
+  APPROVED: {
+    label: 'Approved by reviewer',
+    icon: UserCheck,
+    ...tones.violet,
+    explanation:
+      'A reviewer approved this work order although the evidence did not prove every requirement. This is a human decision, not AI verification.',
+  },
+  REJECTED: {
+    label: 'Rejected by reviewer',
+    icon: UserX,
+    ...tones.rose,
+    explanation: 'A reviewer rejected this work. See their note in the review history.',
   },
 };
 

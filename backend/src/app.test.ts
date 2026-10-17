@@ -448,3 +448,119 @@ describe('SOP drafting without AI', () => {
     expect(res.body.code).toBe('AI_NOT_CONFIGURED');
   });
 });
+
+describe('roles and reviewer sign-off', () => {
+  const { api, create, upload, detail, statuses } = setup(new DevFixtureProvider(0));
+  const reviewer = (method: 'get' | 'post' | 'patch' | 'delete', path: string) =>
+    api[method](path).set('X-Demo-Role', 'reviewer');
+
+  /** Demo scenario after the first run: NEEDS_EVIDENCE with "Indicator functioning" UNCERTAIN. */
+  async function uncertainWorkOrder() {
+    const id = await create();
+    for (const kind of ['before_photo', 'after_photo', 'document', 'additional_photo'] as const) await upload(id, kind);
+    await api.post(`/api/work-orders/${id}/analyze`);
+    const d = await detail(id);
+    expect(d.workOrder.status).toBe('NEEDS_EVIDENCE');
+    expect(statuses(d)).toContain('UNCERTAIN');
+    return id;
+  }
+
+  it('reports who is signed in and in which role', async () => {
+    expect((await api.get('/api/me')).body).toMatchObject({ role: 'technician', roleSource: 'demo' });
+    expect((await reviewer('get', '/api/me')).body).toMatchObject({ role: 'reviewer', roleSource: 'demo' });
+  });
+
+  it('runs submit → in review → approve with note, recorded as a human decision', async () => {
+    const id = await uncertainWorkOrder();
+    expect((await detail(id)).permissions).toMatchObject({ submitForReview: true, review: false });
+
+    const submitted = await api.post(`/api/work-orders/${id}/reviews`).send({ note: 'Indicator hard to see in photo' });
+    expect(submitted.status).toBe(201);
+    expect(submitted.body.workOrder.status).toBe('IN_REVIEW');
+    expect(submitted.body.reviews[0]).toMatchObject({ status: 'PENDING', statusAtSubmission: 'NEEDS_EVIDENCE' });
+
+    // Frozen while in review.
+    expect((await upload(id, 'video')).status).toBe(409);
+    expect((await api.post(`/api/work-orders/${id}/analyze`)).status).toBe(409);
+    expect((await api.post(`/api/work-orders/${id}/reviews`).send({})).status).toBe(409);
+
+    // The technician cannot decide; the reviewer can, and must leave a note.
+    expect((await api.post(`/api/work-orders/${id}/reviews/decision`).send({ decision: 'approve', note: 'fine' })).status).toBe(403);
+    expect((await reviewer('post', `/api/work-orders/${id}/reviews/decision`).send({ decision: 'approve', note: '' })).status).toBe(400);
+
+    const reviewerView = await reviewer('get', `/api/work-orders/${id}`);
+    expect(reviewerView.body.permissions).toMatchObject({ manage: false, upload: false, review: true });
+
+    const approved = await reviewer('post', `/api/work-orders/${id}/reviews/decision`).send({
+      decision: 'approve',
+      note: 'Indicator confirmed lit during site visit.',
+    });
+    expect(approved.status).toBe(200);
+    const d = approved.body as WorkOrderDetail;
+    expect(d.workOrder.status).toBe('APPROVED');
+    expect(d.reviews[0]).toMatchObject({ status: 'APPROVED', decisionNote: 'Indicator confirmed lit during site visit.' });
+    const event = d.audit.at(-1)!;
+    expect(event.type).toBe('REVIEW_APPROVED');
+    expect(event.summary).toContain('human decision, not AI verification');
+    expect(event.data).toMatchObject({ actorRole: 'reviewer', decision: 'approve' });
+    expect(event.actor).not.toBe(d.audit.find((e) => e.type === 'REVIEW_REQUESTED')!.actor);
+    // The requirements themselves are untouched: approval does not make anything PROVEN.
+    expect(statuses(d)).toContain('UNCERTAIN');
+  });
+
+  it('rejects', async () => {
+    const id = await uncertainWorkOrder();
+    await api.post(`/api/work-orders/${id}/reviews`).send({});
+    const res = await reviewer('post', `/api/work-orders/${id}/reviews/decision`).send({ decision: 'reject', note: 'Wrong unit model.' });
+    expect(res.body.workOrder.status).toBe('REJECTED');
+    expect(res.body.audit.at(-1).type).toBe('REVIEW_REJECTED');
+  });
+
+  it('requests more evidence: the request stays open through re-analysis until it is answered', async () => {
+    const id = await uncertainWorkOrder();
+    await api.post(`/api/work-orders/${id}/reviews`).send({});
+    const res = await reviewer('post', `/api/work-orders/${id}/reviews/decision`).send({
+      decision: 'request_evidence',
+      note: 'Need to see the indicator.',
+      request: { kind: 'additional_photo', instruction: 'Upload a close-up of the lit charge indicator.' },
+    });
+    expect(res.status).toBe(200);
+    let d = res.body as WorkOrderDetail;
+    expect(d.workOrder.status).toBe('NEEDS_EVIDENCE');
+    const reviewerRequest = d.requests.find((r) => r.requestedBy.startsWith('user:'))!;
+    expect(reviewerRequest).toMatchObject({ status: 'OPEN', runId: null, kind: 'additional_photo' });
+
+    // A re-analysis triggered by other evidence must not retire the reviewer's request.
+    await upload(id, 'after_photo');
+    d = await detail(id);
+    expect(d.requests.find((r) => r.id === reviewerRequest.id)!.status).toBe('OPEN');
+
+    await upload(id, 'additional_photo');
+    d = await detail(id);
+    expect(d.requests.find((r) => r.id === reviewerRequest.id)!.status).toBe('FULFILLED');
+  });
+
+  it('only allows contradicted or uncertain work orders into review', async () => {
+    const id = await create();
+    expect((await api.post(`/api/work-orders/${id}/reviews`).send({})).status).toBe(409);
+    expect((await detail(id)).permissions.reasons.submitForReview).toMatch(/contradicted/);
+  });
+
+  it('lets reviewers read every work order but change nothing', async () => {
+    const id = await create();
+    const list = (await reviewer('get', '/api/work-orders')).body.workOrders as { id: string }[];
+    expect(list.some((w) => w.id === id)).toBe(true);
+    expect((await reviewer('get', `/api/work-orders/${id}`)).status).toBe(200);
+    expect((await reviewer('get', `/api/work-orders/${id}/report.pdf`)).status).toBe(200);
+
+    expect((await reviewer('post', '/api/work-orders').send({ title: 'x', templateId: 'emergency-light-replacement' })).status).toBe(403);
+    expect((await reviewer('patch', `/api/work-orders/${id}`).send({ title: 'x' })).status).toBe(403);
+    expect((await reviewer('post', `/api/work-orders/${id}/archive`)).status).toBe(403);
+    expect((await reviewer('delete', `/api/work-orders/${id}`)).status).toBe(403);
+    expect((await reviewer('post', `/api/work-orders/${id}/analyze`)).status).toBe(403);
+    const uploadAsReviewer = await reviewer('post', `/api/work-orders/${id}/evidence`)
+      .field('kind', 'after_photo')
+      .attach('file', Buffer.from('x'), { filename: 'a.jpg', contentType: 'image/jpeg' });
+    expect(uploadAsReviewer.status).toBe(403);
+  });
+});

@@ -22,6 +22,7 @@ export function WorkOrderActions({ workOrder, canManage, onChanged }: Props) {
   const [exporting, setExporting] = useState(false);
   const archived = workOrder.archivedAt !== null;
   const analyzing = workOrder.status === 'ANALYZING';
+  const inReview = workOrder.status === 'IN_REVIEW';
 
   const close = () => {
     if (busy) return;
@@ -72,7 +73,12 @@ export function WorkOrderActions({ workOrder, canManage, onChanged }: Props) {
               <ArchiveRestore className="size-3.5" aria-hidden /> Unarchive
             </button>
           ) : (
-            <button className="btn px-2.5 py-1.5 text-xs" onClick={() => setOpen('archive')} disabled={analyzing}>
+            <button
+              className="btn px-2.5 py-1.5 text-xs"
+              onClick={() => setOpen('archive')}
+              disabled={analyzing || inReview}
+              title={inReview ? 'This work order is with a reviewer' : undefined}
+            >
               <Archive className="size-3.5" aria-hidden /> Archive
             </button>
           )}

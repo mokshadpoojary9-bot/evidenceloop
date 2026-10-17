@@ -1,13 +1,15 @@
-import { LogOut } from 'lucide-react';
+import { LogOut, UserRound } from 'lucide-react';
 import { Link, NavLink, Outlet } from 'react-router';
 import { useAuth } from '../auth';
 import { useSystem } from '../hooks';
-import { DISCLAIMER } from '../types';
+import { DISCLAIMER, type Role } from '../types';
+import { useViewer } from '../viewer';
 import { AiPill } from './SystemStatus';
 
 export function AppShell() {
   const { system, error } = useSystem();
   const auth = useAuth();
+  const { viewer, switchDemoRole } = useViewer();
 
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 sm:px-6">
@@ -30,6 +32,26 @@ export function AppShell() {
             Work orders
           </NavLink>
           <AiPill system={system} error={error} />
+          {viewer?.roleSource === 'demo' ? (
+            <label className="inline-flex items-center gap-1.5 text-xs text-slate-400" title="Local development only: act as the demo technician or reviewer">
+              <UserRound className="size-3.5" aria-hidden />
+              <span className="sr-only">Demo role</span>
+              <select
+                className="input w-auto py-1 text-xs"
+                value={viewer.role}
+                onChange={(event) => switchDemoRole(event.target.value as Role)}
+              >
+                <option value="technician">Demo: Technician</option>
+                <option value="reviewer">Demo: Reviewer</option>
+              </select>
+            </label>
+          ) : (
+            viewer && (
+              <span className="inline-flex items-center gap-1 text-xs text-slate-400 capitalize">
+                <UserRound className="size-3.5" aria-hidden /> {viewer.role}
+              </span>
+            )
+          )}
           {auth.session && (
             <button className="btn px-2.5 py-1.5" onClick={() => void auth.signOut()} title={auth.session.user.email}>
               <LogOut className="size-4" aria-hidden /> Sign out
@@ -39,7 +61,8 @@ export function AppShell() {
       </header>
 
       <main className="flex-1 pb-12">
-        <Outlet />
+        {/* Remount pages when the acting user changes, so everything is re-fetched for that role. */}
+        <Outlet key={viewer?.id ?? 'signed-out'} />
       </main>
 
       <footer className="border-t border-line py-5 text-xs text-slate-500">

@@ -104,7 +104,10 @@ export function createEngine(db: Db, provider: AiProvider | null): Engine {
     // Retrieve requirements and build the checklist for this run.
     const requirements = await db.list('requirements', { workOrderId }, 'position');
     const evidence = await db.list('evidence', { workOrderId }, 'createdAt');
-    const openRequests = await db.list('evidence_requests', { workOrderId, status: 'OPEN' });
+    // Only the agent's own requests are reconciled; a reviewer's request stays open until answered.
+    const openRequests = (await db.list('evidence_requests', { workOrderId, status: 'OPEN' })).filter(
+      (request) => (request.requestedBy ?? 'agent') === 'agent',
+    );
     const targets = selectTargets(requirements, evidence, trigger);
 
     const analysisRun: AnalysisRun = {
@@ -306,6 +309,7 @@ export function createEngine(db: Db, provider: AiProvider | null): Engine {
         id: randomUUID(),
         workOrderId,
         runId: analysisRun.id,
+        requestedBy: 'agent',
         ...plan,
         status: 'OPEN',
         fulfilledByEvidenceId: null,

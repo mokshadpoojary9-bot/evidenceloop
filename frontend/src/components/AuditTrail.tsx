@@ -7,6 +7,10 @@ const TONE: Record<string, string> = {
   ANALYSIS_SKIPPED: 'bg-amber-400',
   EVIDENCE_REQUESTED: 'bg-amber-400',
   EVIDENCE_UPLOADED: 'bg-sky-400',
+  REVIEW_REQUESTED: 'bg-violet-400',
+  REVIEW_APPROVED: 'bg-violet-400',
+  REVIEW_REJECTED: 'bg-rose-400',
+  REVIEW_EVIDENCE_REQUESTED: 'bg-amber-400',
 };
 
 // A completed run is only green when it actually ended in VERIFIED.
@@ -28,7 +32,16 @@ export function AuditTrail({ events }: { events: AuditEvent[] }) {
       <ol className="mt-3 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
         {[...events].reverse().map((event) => {
           const Icon = event.actor === 'agent' ? Bot : event.actor === 'system' ? Server : User;
-          const actor = event.actor.startsWith('user:') ? 'User' : event.actor === 'agent' ? 'Agent' : 'System';
+          const role = event.data.actorRole;
+          const actor = event.actor.startsWith('user:')
+            ? role === 'reviewer'
+              ? 'Reviewer'
+              : role === 'technician'
+                ? 'Technician'
+                : 'User'
+            : event.actor === 'agent'
+              ? 'Agent'
+              : 'System';
           return (
             <li key={event.id} className="flex gap-3 text-sm">
               <span className={`mt-1.5 size-2 shrink-0 rounded-full ${tone(event)}`} aria-hidden />

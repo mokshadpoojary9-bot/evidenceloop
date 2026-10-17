@@ -31,7 +31,7 @@ const actorLabel = (event: AuditEvent) =>
   event.actor === 'agent' ? 'Agent' : event.actor === 'system' ? 'System' : `User ${event.actor.slice(5, 13)}`;
 
 export function renderWorkOrderReport(detail: WorkOrderDetail, generatedAt = new Date()): Promise<Buffer> {
-  const { workOrder, requirements, evidence, requests, runs, audit } = detail;
+  const { workOrder, requirements, evidence, requests, runs, audit, reviews } = detail;
   const doc = new PDFDocument({
     size: 'A4',
     margin: MARGIN,
@@ -169,6 +169,24 @@ export function renderWorkOrderReport(detail: WorkOrderDetail, generatedAt = new
     doc.fontSize(9.5).fillColor(COLORS.text);
     for (const request of requests) {
       text(`• [${request.status}] ${request.instruction} (${EVIDENCE_KIND_LABELS[request.kind]})`);
+    }
+  }
+
+  // ---------- Reviews ----------
+  if (reviews.length > 0) {
+    heading(`Reviewer sign-off (${reviews.length})`);
+    for (const review of reviews) {
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text);
+      text(`${review.status.replace('_', ' ')} — submitted ${formatDate(review.submittedAt)} while ${review.statusAtSubmission}`);
+      doc.font('Helvetica').fontSize(9.5);
+      if (review.submissionNote) text(`Technician's note: ${review.submissionNote}`);
+      if (review.decidedAt) text(`Decided ${formatDate(review.decidedAt)} by reviewer ${review.reviewerId?.slice(0, 8)}: ${review.decisionNote}`);
+      if (review.status === 'APPROVED') {
+        doc.fillColor(COLORS.warn);
+        text('Approval is a human decision. It does not mean the evidence proved every requirement.');
+        doc.fillColor(COLORS.text);
+      }
+      doc.moveDown(0.4);
     }
   }
 

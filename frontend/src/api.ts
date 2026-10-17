@@ -4,8 +4,11 @@ import type {
   EvidenceKind,
   NewWorkOrderInput,
   RequirementDraftResponse,
+  ReviewDecision,
+  Role,
   SystemStatus,
   UploadEvidenceResponse,
+  Viewer,
   WorkOrder,
   WorkOrderDetail,
   WorkOrderSummary,
@@ -13,6 +16,15 @@ import type {
 } from './types';
 
 const BASE_URL = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '').replace(/\/$/, '');
+
+/**
+ * Local development only: the role picked in the header's role switcher. The
+ * backend ignores this header whenever Supabase Auth is configured.
+ */
+let demoRole: Role | null = null;
+export const setDemoRole = (role: Role | null) => {
+  demoRole = role;
+};
 
 export class ApiError extends Error {
   constructor(
@@ -36,6 +48,7 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
 
   const session = supabase ? (await supabase.auth.getSession()).data.session : null;
   if (session) headers.set('Authorization', `Bearer ${session.access_token}`);
+  else if (demoRole) headers.set('X-Demo-Role', demoRole);
 
   let response: Response;
   try {
@@ -78,6 +91,13 @@ export const fileUrl = (url: string | null) => (url?.startsWith('/') ? `${BASE_U
 
 export const api = {
   system: () => request<SystemStatus>('/api/system'),
+  me: () => request<Viewer>('/api/me'),
+  submitForReview: (id: string, note: string) =>
+    request<WorkOrderDetail>(`/api/work-orders/${id}/reviews`, { method: 'POST', body: JSON.stringify({ note }) }),
+  decideReview: (
+    id: string,
+    body: { decision: ReviewDecision; note: string; request?: { kind: EvidenceKind; instruction: string } },
+  ) => request<WorkOrderDetail>(`/api/work-orders/${id}/reviews/decision`, { method: 'POST', body: JSON.stringify(body) }),
   templates: () =>
     request<{ templates: WorkOrderTemplate[] }>('/api/templates').then((r) => r.templates),
   listWorkOrders: () =>

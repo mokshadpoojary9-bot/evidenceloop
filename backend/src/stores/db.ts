@@ -5,6 +5,8 @@ import type {
   Evidence,
   EvidenceRequest,
   Requirement,
+  Review,
+  UserRole,
   WorkOrder,
 } from '../types.js';
 
@@ -16,6 +18,8 @@ export interface Tables {
   analysis_runs: AnalysisRun;
   evidence_requests: EvidenceRequest;
   audit_events: AuditEvent;
+  reviews: Review;
+  user_roles: UserRole;
 }
 
 export type TableName = keyof Tables;
@@ -28,6 +32,8 @@ export const TABLE_NAMES: TableName[] = [
   'analysis_runs',
   'evidence_requests',
   'audit_events',
+  'reviews',
+  'user_roles',
 ];
 
 /**

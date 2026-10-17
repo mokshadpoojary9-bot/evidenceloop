@@ -73,6 +73,44 @@ With the DEV fixture enabled:
 
 Adding `#contradict` to an upload's note makes the fixture simulate a contradiction (DEV ONLY).
 
+## Roles and reviewer sign-off
+
+| Role | Can |
+| --- | --- |
+| **Technician** (default) | Create work orders, upload evidence, run verification, add requirements, edit/archive/delete their own work orders, submit for review |
+| **Reviewer** | Read every work order, export reports, decide pending reviews. Cannot change work orders or upload evidence |
+
+A work order that is **CONTRADICTED**, or **not verified with an UNCERTAIN requirement**, can be
+submitted for review. It moves to **In review** and is frozen (no uploads, runs or checklist
+changes). The reviewer then, always with a note:
+
+- **approves** → *Approved by reviewer*. This is a human decision and is labelled as one; the
+  unproven requirements stay unproven and the work order is never shown as *Verified*;
+- **rejects** → *Rejected by reviewer*;
+- **requests more evidence** → an evidence request from the reviewer, back to the technician.
+  Re-analysis never retires a reviewer's request; only an upload answers it.
+
+Every step is in the audit trail with the actor's role. Enforcement is in three places:
+
+1. **Backend** — every route checks the role and ownership (`stores/workOrders.ts`,
+   `routes/reviews.ts`); the UI only reflects the `permissions` the API returns.
+2. **Row Level Security** — technicians read only their own work orders, reviewers read all;
+   clients have no write path at all.
+3. **Database trigger** on `public.reviews`, which also binds the backend's secret key: only a
+   user with the reviewer role can decide a review, never the person who submitted it, and a
+   decided review cannot be changed.
+
+**Assigning roles (Supabase):** every user is a technician until an administrator runs, in the
+SQL editor:
+
+```sql
+insert into public.user_roles (id, role) values ('<auth user uuid>', 'reviewer')
+on conflict (id) do update set role = excluded.role;
+```
+
+**Local mode:** a *Demo: Technician / Reviewer* switcher in the header acts as two fixed local
+users. The backend honours it only when Supabase Auth is not configured.
+
 ## Requirements from an SOP
 
 On the new-work-order form, or on an existing work order, upload an SOP or manual (PDF with a text
@@ -264,5 +302,4 @@ Vite), and set the three `VITE_*` variables.
 - Live Nebius/Nemotron verification (blocked on the API key) and prompt tuning against real output
 - Audio transcription (audio and video soundtracks are "attached but not inspected") and OCR for
   scanned PDFs
-- Reviewer sign-off for contradicted work orders; roles beyond a single owner
 - Frontend tests

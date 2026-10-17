@@ -1,7 +1,7 @@
-import { Float, Html, OrbitControls } from '@react-three/drei';
+import { Float, OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useRef } from 'react';
-import type { Group, Mesh, MeshStandardMaterial } from 'three';
+import { useEffect, useMemo, useRef } from 'react';
+import { CanvasTexture, type Group, type Mesh, type MeshStandardMaterial } from 'three';
 
 // The verification loop in 3D: one node per requirement on a ring, coloured by
 // its status, with a tracer circling the loop. Loaded lazily (see LoopVisual).
@@ -36,10 +36,36 @@ function Node({ node, index, total }: { node: LoopNode; index: number; total: nu
     <mesh ref={mesh} position={[Math.cos(angle) * RADIUS, 0, Math.sin(angle) * RADIUS]}>
       <sphereGeometry args={[0.19, 32, 32]} />
       <meshStandardMaterial ref={material} color={node.hex} emissive={node.hex} roughness={0.35} />
-      <Html center position={[0, 0.42, 0]} className="pointer-events-none select-none">
-        <span className="text-[10px] leading-none font-bold text-slate-300">{index + 1}</span>
-      </Html>
+      <NodeLabel text={String(index + 1)} />
     </mesh>
+  );
+}
+
+/**
+ * The node number, drawn on a canvas texture and shown as a sprite. (drei's <Html>
+ * mounts a separate React root per label, which React 19 warns about on unmount.)
+ */
+function NodeLabel({ text }: { text: string }) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.font = 'bold 40px Inter, system-ui, sans-serif';
+      context.fillStyle = '#cbd5e1';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(text, 32, 34);
+    }
+    return new CanvasTexture(canvas);
+  }, [text]);
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  return (
+    <sprite position={[0, 0.42, 0]} scale={[0.26, 0.26, 1]}>
+      <spriteMaterial map={texture} transparent depthWrite={false} />
+    </sprite>
   );
 }
 

@@ -9,9 +9,12 @@ import { WORK_ORDER_STATUSES, type WorkOrderSummary } from '../types';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS, formatDate } from './labels';
 import { StatusBadge } from './StatusBadge';
 import { AiBanner } from './SystemStatus';
+import { useViewer } from '../viewer';
 
 export function WorkOrderList() {
   const { system } = useSystem();
+  const { viewer } = useViewer();
+  const isReviewer = viewer?.role === 'reviewer';
   const [workOrders, setWorkOrders] = useState<WorkOrderSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(DEFAULT_QUERY);
@@ -27,10 +30,19 @@ export function WorkOrderList() {
       <AiBanner system={system} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-white">Work orders</h1>
-        <Link to="/work-orders/new" className="btn btn-primary">
-          <Plus className="size-4" aria-hidden /> New work order
-        </Link>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Work orders</h1>
+          {isReviewer && (
+            <p className="mt-0.5 text-sm text-slate-400">
+              As a reviewer you see every work order. Filter by “In review” to find the ones waiting for you.
+            </p>
+          )}
+        </div>
+        {!isReviewer && (
+          <Link to="/work-orders/new" className="btn btn-primary">
+            <Plus className="size-4" aria-hidden /> New work order
+          </Link>
+        )}
       </div>
 
       {error && (
@@ -103,9 +115,11 @@ export function WorkOrderList() {
             Start with the demo scenario — “Replace emergency light in Room 204” — and see which requirements the
             evidence actually proves.
           </p>
-          <Link to="/work-orders/new" className="btn btn-primary mt-2">
-            <Plus className="size-4" aria-hidden /> Create the demo work order
-          </Link>
+          {!isReviewer && (
+            <Link to="/work-orders/new" className="btn btn-primary mt-2">
+              <Plus className="size-4" aria-hidden /> Create the demo work order
+            </Link>
+          )}
         </div>
       )}
 

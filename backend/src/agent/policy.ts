@@ -6,8 +6,8 @@ import {
   type DecisionStatus,
   type EvidenceNeed,
   type Observation,
+  type ComputedStatus,
   type Requirement,
-  type WorkOrderStatus,
 } from '../types.js';
 
 /**
@@ -162,7 +162,7 @@ export function applyPolicy(
  */
 export function overallStatus(
   requirements: Pick<Requirement, 'mandatory' | 'status'>[],
-): Exclude<WorkOrderStatus, 'AWAITING_EVIDENCE'> {
+): ComputedStatus {
   if (requirements.some((r) => r.status === 'ANALYZING')) return 'ANALYZING';
   if (requirements.some((r) => r.status === 'CONTRADICTED')) return 'CONTRADICTED';
   const mandatory = requirements.filter((r) => r.mandatory);
