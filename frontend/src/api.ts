@@ -1,6 +1,7 @@
 import { supabase } from './lib/supabase';
 import type {
   AddRequirementsInput,
+  DashboardData,
   EvidenceKind,
   NewWorkOrderInput,
   RequirementDraftResponse,
@@ -100,6 +101,7 @@ export const api = {
   ) => request<WorkOrderDetail>(`/api/work-orders/${id}/reviews/decision`, { method: 'POST', body: JSON.stringify(body) }),
   templates: () =>
     request<{ templates: WorkOrderTemplate[] }>('/api/templates').then((r) => r.templates),
+  dashboard: () => request<DashboardData>('/api/dashboard'),
   listWorkOrders: () =>
     request<{ workOrders: WorkOrderSummary[] }>('/api/work-orders').then((r) => r.workOrders),
   getWorkOrder: (id: string) => request<WorkOrderDetail>(`/api/work-orders/${id}`),

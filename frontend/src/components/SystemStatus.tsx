@@ -1,17 +1,18 @@
-import { Cpu, FlaskConical, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { Cpu, Database, FlaskConical, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import type { SystemStatus } from '../types';
+import { Badge } from './ui';
 
 /** Compact AI-mode indicator for the header. */
 export function AiPill({ system, error }: { system: SystemStatus | null; error: string | null }) {
-  if (error) return <Pill className="border-rose-400/40 text-rose-300">API offline</Pill>;
-  if (!system) return <Pill className="border-line text-slate-400">Connecting…</Pill>;
+  if (error) return <Pill className="border-contradicted/40 text-contradicted-fg">API offline</Pill>;
+  if (!system) return <Pill className="border-line text-fg-subtle">Connecting…</Pill>;
 
   switch (system.ai.mode) {
     case 'nebius':
       // "Connected" is only claimed after the backend's live text + image test passed.
       if (system.ai.live.state === 'connected') {
         return (
-          <Pill className="border-emerald-400/30 text-emerald-300" title={system.ai.message}>
+          <Pill className="border-proven/30 text-proven-fg" title={system.ai.message}>
             <Cpu className="size-3.5" aria-hidden />
             {/* The full sentence is ~560px wide and cannot wrap; phones show a short label instead. */}
             <span aria-hidden className="sm:hidden">
@@ -26,25 +27,25 @@ export function AiPill({ system, error }: { system: SystemStatus | null; error: 
       }
       if (system.ai.live.state === 'checking') {
         return (
-          <Pill className="border-sky-400/30 text-sky-300" title={system.ai.message}>
+          <Pill className="border-analyzing/30 text-analyzing-fg" title={system.ai.message}>
             <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> Nemotron configured · testing connection
           </Pill>
         );
       }
       return (
-        <Pill className="border-amber-400/40 text-amber-300" title={system.ai.message}>
+        <Pill className="border-uncertain/40 text-uncertain-fg" title={system.ai.message}>
           <TriangleAlert className="size-3.5" aria-hidden /> Nemotron configured · not verified
         </Pill>
       );
     case 'dev-fixture':
       return (
-        <Pill className="dev-stripe border-fuchsia-400/50 text-fuchsia-200" title={system.ai.message}>
+        <Pill className="dev-stripe border-dev/50 text-dev-fg" title={system.ai.message}>
           <FlaskConical className="size-3.5" aria-hidden /> DEV fixture · not AI
         </Pill>
       );
     case 'unconfigured':
       return (
-        <Pill className="border-amber-400/40 text-amber-300" title={system.ai.message}>
+        <Pill className="border-uncertain/40 text-uncertain-fg" title={system.ai.message}>
           <TriangleAlert className="size-3.5" aria-hidden /> Production AI not configured
         </Pill>
       );
@@ -55,7 +56,7 @@ function Pill({ className, title, children }: { className: string; title?: strin
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1.5 rounded-full border bg-ink-900 px-3 py-1 text-xs font-semibold whitespace-nowrap ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border bg-surface px-3 py-1 text-xs font-semibold whitespace-nowrap ${className}`}
     >
       {children}
     </span>
@@ -69,11 +70,11 @@ export function AiBanner({ system }: { system: SystemStatus | null }) {
   if (system.ai.mode === 'nebius') {
     if (system.ai.live.state !== 'failed') return null;
     return (
-      <div role="note" className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+      <div role="note" className="rounded-xl border border-uncertain/40 bg-uncertain/10 px-4 py-3 text-sm text-uncertain-fg">
         <p className="flex items-center gap-2 font-bold">
           <TriangleAlert className="size-4 shrink-0" aria-hidden /> NVIDIA Nemotron is configured but not verified
         </p>
-        <p className="mt-1 text-amber-100/80">
+        <p className="mt-1 text-uncertain-fg/80">
           The live connection test failed: {system.ai.live.detail} Run <code className="font-mono">npm run check:nebius</code>{' '}
           on the backend for details.
         </p>
@@ -83,11 +84,11 @@ export function AiBanner({ system }: { system: SystemStatus | null }) {
 
   if (system.ai.mode === 'dev-fixture') {
     return (
-      <div role="note" className="dev-stripe rounded-xl border border-fuchsia-400/50 px-4 py-3 text-sm text-fuchsia-100">
+      <div role="note" className="dev-stripe rounded-xl border border-dev/50 px-4 py-3 text-sm text-dev-fg">
         <p className="flex items-center gap-2 font-bold">
           <FlaskConical className="size-4 shrink-0" aria-hidden /> DEV ONLY — results on this page are simulated
         </p>
-        <p className="mt-1 text-fuchsia-100/80">
+        <p className="mt-1 text-dev-fg/80">
           Production AI (Nebius Token Factory + NVIDIA Nemotron) is not configured. A deterministic fixture is standing
           in so the verification loop can be exercised. It does not open or interpret any file — it only checks which
           kinds of evidence are attached. Nothing it reports is AI inference or a real verification.
@@ -97,15 +98,76 @@ export function AiBanner({ system }: { system: SystemStatus | null }) {
   }
 
   return (
-    <div role="note" className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+    <div role="note" className="rounded-xl border border-uncertain/40 bg-uncertain/10 px-4 py-3 text-sm text-uncertain-fg">
       <p className="flex items-center gap-2 font-bold">
         <TriangleAlert className="size-4 shrink-0" aria-hidden /> Production AI is not configured
       </p>
-      <p className="mt-1 text-amber-100/80">
+      <p className="mt-1 text-uncertain-fg/80">
         Verification is disabled until <code className="font-mono">NEBIUS_API_KEY</code> and{' '}
         <code className="font-mono">NEBIUS_MODEL</code> are set on the backend (Nebius Token Factory + NVIDIA
         Nemotron). You can still create work orders and upload evidence; no requirement will be marked proven.
       </p>
     </div>
+  );
+}
+
+/**
+ * The system at a glance: the AI connection and where data lives. "Nemotron connected" only
+ * after the backend's live test passed; the DEV fixture is always called simulated.
+ */
+export function SystemChips({ system, error }: { system: SystemStatus | null; error: string | null }) {
+  if (error) return <Badge tone="contradicted">API offline</Badge>;
+  if (!system) return <Badge>Connecting…</Badge>;
+
+  const ai = (() => {
+    switch (system.ai.mode) {
+      case 'nebius':
+        if (system.ai.live.state === 'connected') {
+          return (
+            <Badge tone="accent" title={system.ai.model ?? undefined}>
+              <Cpu className="size-3.5" aria-hidden /> Nemotron connected
+            </Badge>
+          );
+        }
+        if (system.ai.live.state === 'checking') {
+          return (
+            <Badge tone="analyzing">
+              <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> Testing Nemotron…
+            </Badge>
+          );
+        }
+        return (
+          <Badge tone="uncertain" title={system.ai.message}>
+            <TriangleAlert className="size-3.5" aria-hidden /> Nemotron not verified
+          </Badge>
+        );
+      case 'dev-fixture':
+        return (
+          <Badge tone="dev" title={system.ai.message}>
+            <FlaskConical className="size-3.5" aria-hidden /> Simulated · dev fixture
+          </Badge>
+        );
+      case 'unconfigured':
+        return (
+          <Badge tone="uncertain" title={system.ai.message}>
+            <TriangleAlert className="size-3.5" aria-hidden /> AI not configured
+          </Badge>
+        );
+    }
+  })();
+
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {ai}
+      {system.persistence === 'supabase' ? (
+        <Badge tone="proven">
+          <Database className="size-3.5" aria-hidden /> Supabase connected
+        </Badge>
+      ) : (
+        <Badge title="Local development: data on this machine, no sign-in">
+          <HardDrive className="size-3.5" aria-hidden /> Local data · dev
+        </Badge>
+      )}
+    </span>
   );
 }

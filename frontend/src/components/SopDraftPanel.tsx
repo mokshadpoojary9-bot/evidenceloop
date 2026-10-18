@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { api } from '../api';
 import type { AddRequirementsInput, RequirementDraftResponse } from '../types';
 import { draftKey, RequirementEditor, type DraftRequirement } from './RequirementEditor';
+import { Button, FileInput, useToast } from './ui';
 
 interface Props {
   /** What the work order is about, to focus the proposals. */
@@ -26,6 +27,7 @@ export function SopDraftPanel({ context, aiAvailable, maxUploadMb, confirmLabel,
   const fileInput = useRef<HTMLInputElement>(null);
   const tooLarge = file !== null && maxUploadMb !== null && file.size > maxUploadMb * 1024 * 1024;
 
+  const toast = useToast();
   const generate = async () => {
     if (!file) return;
     setBusy('drafting');
@@ -36,8 +38,11 @@ export function SopDraftPanel({ context, aiAvailable, maxUploadMb, confirmLabel,
         response,
         items: response.proposals.map(({ sourceQuote, ...proposal }) => ({ key: draftKey(), ...proposal, sourceQuote })),
       });
+      toast.info(`${response.proposals.length} requirement${response.proposals.length === 1 ? '' : 's'} proposed. Review them before saving.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not draft requirements');
+      const message = err instanceof Error ? err.message : 'Could not draft requirements';
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(null);
     }
@@ -60,9 +65,12 @@ export function SopDraftPanel({ context, aiAvailable, maxUploadMb, confirmLabel,
         fileName: draft.response.source.fileName,
         simulated: draft.response.simulated,
       });
+      toast.success(`Saved ${draft.items.length} requirement${draft.items.length === 1 ? '' : 's'}`);
       discard();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save the requirements');
+      const message = err instanceof Error ? err.message : 'Could not save the requirements';
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(null);
     }
@@ -76,35 +84,34 @@ export function SopDraftPanel({ context, aiAvailable, maxUploadMb, confirmLabel,
   if (!draft) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-fg-subtle">
           Upload an SOP or manual (PDF with a text layer, or plain text) and EvidenceLoop will propose requirements
           from it. You review and edit them; nothing is saved until you confirm.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <input
+          <FileInput
             ref={fileInput}
-            type="file"
             accept="application/pdf,text/plain,text/markdown"
             aria-label="SOP or manual file"
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            className="input min-w-0 flex-1 basis-60 file:mr-3 file:rounded-md file:border-0 file:bg-ink-700 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-slate-100"
+            className="min-w-0 flex-1 basis-60"
           />
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             onClick={() => void generate()}
             disabled={!file || tooLarge || busy !== null || !aiAvailable}
             title={aiAvailable ? undefined : 'Production AI is not configured'}
           >
             {busy === 'drafting' ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
             {busy === 'drafting' ? 'Reading the SOP…' : 'Generate requirements'}
-          </button>
+          </Button>
         </div>
-        {tooLarge && <p className="text-xs text-rose-300">Larger than the {maxUploadMb} MB limit.</p>}
+        {tooLarge && <p className="text-xs text-contradicted-fg">Larger than the {maxUploadMb} MB limit.</p>}
         {!aiAvailable && (
-          <p className="text-xs text-amber-300">Production AI is not configured, so requirements cannot be drafted.</p>
+          <p className="text-xs text-uncertain-fg">Production AI is not configured, so requirements cannot be drafted.</p>
         )}
-        {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
+        {error && <p role="alert" className="text-sm text-contradicted-fg">{error}</p>}
       </div>
     );
   }
@@ -113,18 +120,18 @@ export function SopDraftPanel({ context, aiAvailable, maxUploadMb, confirmLabel,
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <p className="flex items-center gap-1.5 text-slate-300">
-          <FileText className="size-4 text-slate-500" aria-hidden />
+        <p className="flex items-center gap-1.5 text-fg-muted">
+          <FileText className="size-4 text-fg-faint" aria-hidden />
           {items.length} proposal{items.length === 1 ? '' : 's'} from <strong>{response.source.fileName}</strong>
-          {response.source.pages !== null && <span className="text-slate-500">({response.source.pages} pages)</span>}
+          {response.source.pages !== null && <span className="text-fg-faint">({response.source.pages} pages)</span>}
         </p>
-        <button type="button" className="btn px-2.5 py-1.5 text-xs" onClick={discard} disabled={busy !== null}>
+        <Button type="button" size="sm" onClick={discard} disabled={busy !== null}>
           <X className="size-3.5" aria-hidden /> Discard
-        </button>
+        </Button>
       </div>
 
       {response.simulated ? (
-        <p className="dev-stripe flex gap-2 rounded-lg border border-fuchsia-400/50 px-3 py-2 text-xs text-fuchsia-100">
+        <p className="dev-stripe flex gap-2 rounded-lg border border-dev/50 px-3 py-2 text-xs text-dev-fg">
           <FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span>
             <strong>DEV ONLY — simulated list.</strong> The deterministic fixture copied step-like lines from the SOP.
@@ -132,26 +139,26 @@ export function SopDraftPanel({ context, aiAvailable, maxUploadMb, confirmLabel,
           </span>
         </p>
       ) : (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-fg-subtle">
           Proposed by {response.model ?? 'the AI provider'}. Each one quotes the SOP passage it came from; check it
           says what the requirement claims.
         </p>
       )}
       {response.source.truncated && (
-        <p className="text-xs text-amber-300">
+        <p className="text-xs text-uncertain-fg">
           The document is long: only its first {response.source.chars.toLocaleString()} characters were read. Later
           sections may contain requirements that are not listed here.
         </p>
       )}
       {response.dropped > 0 && (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-fg-subtle">
           {response.dropped} proposal{response.dropped === 1 ? ' was' : 's were'} discarded because the quoted text was
           not found in the SOP or was malformed.
         </p>
       )}
 
       {items.length === 0 ? (
-        <p className="rounded-xl border border-line bg-ink-800 p-4 text-sm text-slate-400">
+        <p className="rounded-xl border border-line bg-surface-2 p-4 text-sm text-fg-subtle">
           No requirements could be drawn from this document. Add them by hand instead.
         </p>
       ) : (
@@ -171,17 +178,17 @@ export function SopDraftPanel({ context, aiAvailable, maxUploadMb, confirmLabel,
         </div>
       )}
 
-      {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
+      {error && <p role="alert" className="text-sm text-contradicted-fg">{error}</p>}
       <div className="flex justify-end gap-2">
-        <button
+        <Button
           type="button"
-          className="btn btn-primary"
+          variant="primary"
           onClick={() => void confirm()}
           disabled={items.length === 0 || items.some((item) => !item.title.trim()) || busy !== null}
         >
           {busy === 'saving' && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
           {confirmLabel(items.length)}
-        </button>
+        </Button>
       </div>
     </div>
   );

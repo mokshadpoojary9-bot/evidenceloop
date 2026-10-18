@@ -167,11 +167,11 @@ export function GraphTooltip({ graph, hover, width }: { graph: VerificationGraph
   return (
     <div
       aria-hidden
-      className={`pointer-events-none absolute z-10 w-max max-w-56 -translate-x-1/2 rounded-lg border border-white/10 bg-ink-950/95 px-2.5 py-1.5 text-xs shadow-lg ${below ? '' : '-translate-y-full'}`}
+      className={`pointer-events-none absolute z-10 w-max max-w-56 -translate-x-1/2 rounded-lg border border-white/10 bg-surface/95 px-2.5 py-1.5 text-xs shadow-lg ${below ? '' : '-translate-y-full'}`}
       style={{ left: x, top: below ? hover.y + 28 : hover.y - 10 }}
     >
-      <p className="font-semibold text-white">{title}</p>
-      <p className="text-slate-400">{detail}</p>
+      <p className="font-semibold text-fg">{title}</p>
+      <p className="text-fg-subtle">{detail}</p>
     </div>
   );
 }

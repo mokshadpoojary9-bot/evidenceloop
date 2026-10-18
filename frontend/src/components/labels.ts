@@ -16,25 +16,28 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { EvidenceKind, RequirementStatus, WorkOrderStatus } from '../types';
+import type { Tone } from './ui/Badge';
 
 export interface StatusMeta {
   label: string;
   icon: LucideIcon;
-  /** Tailwind classes for a tinted chip. */
-  chip: string;
+  /** Badge tone (shared with the UI kit). */
+  tone: Tone;
   /** Colour used by the 3D loop. */
   hex: string;
   spin?: boolean;
 }
 
+// `tone` is the shared Badge tone; `hex` is the fill the 3D scenes use, which matches the
+// status tokens in styles.css (the 3D stage is dark in both themes).
 const tones = {
-  emerald: { chip: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300', hex: '#34d399' },
-  slate: { chip: 'border-slate-500/40 bg-slate-500/10 text-slate-300', hex: '#7c8aa3' },
-  amber: { chip: 'border-amber-400/30 bg-amber-400/10 text-amber-300', hex: '#fbbf24' },
-  rose: { chip: 'border-rose-400/40 bg-rose-400/10 text-rose-300', hex: '#fb7185' },
-  sky: { chip: 'border-sky-400/30 bg-sky-400/10 text-sky-300', hex: '#38bdf8' },
-  violet: { chip: 'border-violet-400/40 bg-violet-400/10 text-violet-200', hex: '#a78bfa' },
-};
+  emerald: { tone: 'proven', hex: '#34d399' },
+  slate: { tone: 'not-proven', hex: '#7c8aa3' },
+  amber: { tone: 'uncertain', hex: '#fbbf24' },
+  rose: { tone: 'contradicted', hex: '#fb7185' },
+  sky: { tone: 'analyzing', hex: '#38bdf8' },
+  violet: { tone: 'review', hex: '#a78bfa' },
+} as const;
 
 export const REQUIREMENT_STATUS: Record<RequirementStatus, StatusMeta> = {
   PROVEN: { label: 'Proven', icon: CircleCheck, ...tones.emerald },
@@ -135,4 +138,17 @@ export function formatBytes(bytes: number): string {
 export function formatSeconds(seconds: number): string {
   const whole = Math.floor(seconds);
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
+const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
+/** "just now", "5 min ago", "yesterday"; falls back to the date after a week. */
+export function formatRelative(iso: string, now = Date.now()): string {
+  const seconds = Math.round((new Date(iso).getTime() - now) / 1000);
+  const abs = Math.abs(seconds);
+  if (abs < 45) return 'just now';
+  if (abs < 3600) return RELATIVE.format(Math.round(seconds / 60), 'minute');
+  if (abs < 86_400) return RELATIVE.format(Math.round(seconds / 3600), 'hour');
+  if (abs < 7 * 86_400) return RELATIVE.format(Math.round(seconds / 86_400), 'day');
+  return formatDate(iso);
 }

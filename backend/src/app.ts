@@ -9,6 +9,7 @@ import { createSystemRouter } from './routes/health.js';
 import { createRequirementsRouter } from './routes/requirements.js';
 import { createReviewsRouter } from './routes/reviews.js';
 import { createWorkOrdersRouter } from './routes/workOrders.js';
+import { getDashboard } from './stores/dashboard.js';
 import type { Db } from './stores/db.js';
 import { LocalFileStore, type FileStore } from './stores/fileStore.js';
 import type { SystemStatus, Viewer } from './types.js';
@@ -54,6 +55,11 @@ export function createApp({ db, files, engine, ai, supabase, system, corsOrigins
   app.get('/api/me', auth, (_req, res) => {
     const { id, email, role, roleSource } = currentUser(res);
     res.json({ id, email, role, roleSource } satisfies Viewer);
+  });
+
+  // The dashboard home: counts, what needs action, recent activity.
+  app.get('/api/dashboard', auth, async (_req, res) => {
+    res.json(await getDashboard(db, currentUser(res)));
   });
 
   app.use(

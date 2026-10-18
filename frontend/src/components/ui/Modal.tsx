@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { Button } from './Button';
 
 interface Props {
   open: boolean;
@@ -11,8 +12,9 @@ interface Props {
 }
 
 /** Modal built on the native <dialog> element: focus trapping and Escape come for free. */
-export function Dialog({ open, title, onClose, children, size = 'md' }: Props) {
+export function Modal({ open, title, onClose, children, size = 'md' }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -26,18 +28,18 @@ export function Dialog({ open, title, onClose, children, size = 'md' }: Props) {
       ref={ref}
       onClose={onClose}
       onClick={(event) => event.target === ref.current && onClose()}
-      aria-labelledby="dialog-title"
-      className={`card m-auto w-[calc(100%-2rem)] p-0 text-slate-200 backdrop:bg-black/70 ${size === 'xl' ? 'max-w-5xl' : 'max-w-lg'}`}
+      aria-labelledby={titleId}
+      className={`card m-auto w-[calc(100%-2rem)] bg-surface p-0 text-fg-muted shadow-raised backdrop:bg-black/70 ${size === 'xl' ? 'max-w-5xl' : 'max-w-lg'}`}
     >
       {open && (
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between gap-3">
-            <h2 id="dialog-title" className="min-w-0 text-lg font-bold break-words text-white">
+            <h2 id={titleId} className="min-w-0 text-lg font-bold break-words text-fg">
               {title}
             </h2>
-            <button className="btn shrink-0 px-2 py-1.5" onClick={onClose} aria-label="Close">
+            <Button size="icon" className="shrink-0" onClick={onClose} aria-label="Close">
               <X className="size-4" aria-hidden />
-            </button>
+            </Button>
           </div>
           {children}
         </div>
@@ -60,19 +62,23 @@ interface ConfirmProps {
 
 export function ConfirmDialog({ open, title, message, confirmLabel, danger, busy, error, onConfirm, onCancel }: ConfirmProps) {
   return (
-    <Dialog open={open} title={title} onClose={onCancel}>
-      <div className="space-y-4 text-sm text-slate-300">
+    <Modal open={open} title={title} onClose={onCancel}>
+      <div className="space-y-4 text-sm text-fg-muted">
         {message}
-        {error && <p role="alert" className="text-rose-300">{error}</p>}
+        {error && (
+          <p role="alert" className="text-contradicted-fg">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
-          <button className="btn" onClick={onCancel} disabled={busy}>
+          <Button onClick={onCancel} disabled={busy}>
             Cancel
-          </button>
-          <button className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`} onClick={onConfirm} disabled={busy}>
+          </Button>
+          <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm} disabled={busy}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
-    </Dialog>
+    </Modal>
   );
 }

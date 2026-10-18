@@ -1,5 +1,5 @@
-import { ArrowLeft, ChevronDown, LoaderCircle, Plus } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { ArrowLeft, ChevronDown, LoaderCircle, Plus, UserSearch } from 'lucide-react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api } from '../api';
 import { useSystem } from '../hooks';
@@ -13,6 +13,7 @@ import {
 } from './RequirementEditor';
 import { SopDraftPanel } from './SopDraftPanel';
 import { useViewer } from '../viewer';
+import { Button, ButtonLink, Card, EmptyState, ErrorState, Input, Loading, Select, Skeleton, Textarea, useToast } from './ui';
 
 const CUSTOM = 'custom';
 
@@ -21,6 +22,7 @@ export function WorkOrderForm() {
   const { system } = useSystem();
   const { viewer } = useViewer();
   const [templates, setTemplates] = useState<WorkOrderTemplate[]>([]);
+  const [templateState, setTemplateState] = useState<'loading' | 'ready' | string>('loading');
   const [templateId, setTemplateId] = useState(CUSTOM);
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -40,15 +42,18 @@ export function WorkOrderForm() {
   };
 
   // Start from the demo scenario; it is one click to switch to a blank work order.
-  useEffect(() => {
+  const loadTemplates = useCallback(() => {
+    setTemplateState('loading');
     api.templates().then(
       (loaded) => {
         setTemplates(loaded);
         applyTemplate(loaded[0]);
+        setTemplateState('ready');
       },
-      (err: Error) => setError(err.message),
+      (err: Error) => setTemplateState(err.message),
     );
   }, []);
+  useEffect(loadTemplates, [loadTemplates]);
 
   const update = (key: number, patch: Partial<DraftRequirement>) =>
     setRequirements((items) => items.map((item) => (item.key === key ? { ...item, ...patch } : item)));
@@ -63,6 +68,7 @@ export function WorkOrderForm() {
     setSopOpen(false);
   };
 
+  const toast = useToast();
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
@@ -75,42 +81,54 @@ export function WorkOrderForm() {
         templateId: templateId === CUSTOM ? null : templateId,
         requirements: requirements.map(toRequirementInput),
       });
+      toast.success(`Created “${created.workOrder.title}”`);
       navigate(`/work-orders/${created.workOrder.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create work order');
+      const message = err instanceof Error ? err.message : 'Could not create work order';
+      setError(message);
+      toast.error(message);
       setSubmitting(false);
     }
   };
 
   if (viewer?.role === 'reviewer') {
     return (
-      <div className="card mx-auto mt-10 max-w-lg p-6 text-center">
-        <p className="text-slate-300">Reviewers do not create work orders. Switch to a technician account to create one.</p>
-        <Link to="/work-orders" className="btn mt-4">
-          Back to work orders
-        </Link>
-      </div>
+      <EmptyState
+        icon={UserSearch}
+        title="Reviewers do not create work orders"
+        className="mx-auto mt-10 max-w-lg"
+        action={<ButtonLink to="/work-orders">Back to work orders</ButtonLink>}
+      >
+        Switch to a technician account to create one.
+      </EmptyState>
     );
   }
+  if (templateState === 'loading') return <FormSkeleton />;
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <Link to="/work-orders" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white">
+      <Link to="/work-orders" className="inline-flex items-center gap-1.5 text-sm text-fg-subtle hover:text-fg">
         <ArrowLeft className="size-4" aria-hidden /> Work orders
       </Link>
 
+      {templateState !== 'ready' && (
+        <ErrorState
+          message={`Templates could not be loaded (${templateState}). You can still create a blank work order.`}
+          onRetry={loadTemplates}
+        />
+      )}
+
       <form onSubmit={handleSubmit} className="card space-y-5 p-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">New work order</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <h1 className="text-2xl font-bold tracking-tight text-fg">New work order</h1>
+          <p className="mt-1 text-sm text-fg-subtle">
             Define the task and the requirements that evidence must prove. Nothing is assumed complete.
           </p>
         </div>
 
         <label className="block text-sm">
           <span className="mb-1 block font-semibold">Start from</span>
-          <select
-            className="input"
+          <Select
             value={templateId}
             onChange={(event) => {
               const template = templates.find((candidate) => candidate.id === event.target.value);
@@ -127,14 +145,13 @@ export function WorkOrderForm() {
               </option>
             ))}
             <option value={CUSTOM}>Blank work order</option>
-          </select>
+          </Select>
         </label>
 
         <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <label className="block text-sm">
             <span className="mb-1 block font-semibold">Title</span>
-            <input
-              className="input"
+            <Input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Replace emergency light in Room 204"
@@ -144,8 +161,7 @@ export function WorkOrderForm() {
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-semibold">Location</span>
-            <input
-              className="input"
+            <Input
               value={location}
               onChange={(event) => setLocation(event.target.value)}
               placeholder="Room 204"
@@ -156,8 +172,7 @@ export function WorkOrderForm() {
 
         <label className="block text-sm">
           <span className="mb-1 block font-semibold">Description</span>
-          <textarea
-            className="input"
+          <Textarea
             rows={3}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
@@ -173,7 +188,7 @@ export function WorkOrderForm() {
             onClick={() => setSopOpen((open) => !open)}
           >
             Generate requirements from an SOP or manual
-            <ChevronDown className={`size-4 text-slate-500 transition-transform ${sopOpen ? 'rotate-180' : ''}`} aria-hidden />
+            <ChevronDown className={`size-4 text-fg-faint transition-transform ${sopOpen ? 'rotate-180' : ''}`} aria-hidden />
           </button>
           {sopOpen && (
             <div className="border-t border-line p-4">
@@ -200,27 +215,47 @@ export function WorkOrderForm() {
               removable={requirements.length > 1}
             />
           ))}
-          <button type="button" className="btn" onClick={() => setRequirements((items) => [...items, blankRequirement()])}>
+          <Button type="button" onClick={() => setRequirements((items) => [...items, blankRequirement()])}>
             <Plus className="size-4" aria-hidden /> Add requirement
-          </button>
+          </Button>
         </fieldset>
 
         {error && (
-          <p role="alert" className="rounded-xl border border-rose-400/40 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+          <p role="alert" className="rounded-xl border border-contradicted/40 bg-contradicted/10 px-4 py-3 text-sm text-contradicted-fg">
             {error}
           </p>
         )}
 
         <div className="flex justify-end gap-2 border-t border-line pt-5">
-          <Link to="/work-orders" className="btn">
+          <ButtonLink to="/work-orders" >
             Cancel
-          </Link>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
+          </ButtonLink>
+          <Button type="submit" variant="primary" disabled={submitting}>
             {submitting && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
             {submitting ? 'Creating…' : 'Create work order'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
+  );
+}
+
+function FormSkeleton() {
+  return (
+    <Loading label="Loading the form…">
+      <div className="mx-auto max-w-3xl space-y-5">
+        <Skeleton className="h-4 w-28" />
+        <Card padding="lg" className="space-y-5">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-4 w-3/4" />
+          {[0, 1, 2].map((k) => (
+            <div key={k} className="space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ))}
+        </Card>
+      </div>
+    </Loading>
   );
 }

@@ -3,23 +3,23 @@ import type { AuditEvent } from '../types';
 import { formatTime } from './labels';
 
 const TONE: Record<string, string> = {
-  ANALYSIS_FAILED: 'bg-rose-400',
-  ANALYSIS_SKIPPED: 'bg-amber-400',
-  EVIDENCE_REQUESTED: 'bg-amber-400',
-  EVIDENCE_UPLOADED: 'bg-sky-400',
-  REVIEW_REQUESTED: 'bg-violet-400',
-  REVIEW_APPROVED: 'bg-violet-400',
-  REVIEW_REJECTED: 'bg-rose-400',
-  REVIEW_EVIDENCE_REQUESTED: 'bg-amber-400',
+  ANALYSIS_FAILED: 'bg-contradicted',
+  ANALYSIS_SKIPPED: 'bg-uncertain',
+  EVIDENCE_REQUESTED: 'bg-uncertain',
+  EVIDENCE_UPLOADED: 'bg-analyzing',
+  REVIEW_REQUESTED: 'bg-review',
+  REVIEW_APPROVED: 'bg-review',
+  REVIEW_REJECTED: 'bg-contradicted',
+  REVIEW_EVIDENCE_REQUESTED: 'bg-uncertain',
 };
 
 // A completed run is only green when it actually ended in VERIFIED.
 function tone(event: AuditEvent): string {
   if (event.type === 'ANALYSIS_COMPLETED') {
     const status = event.data.status;
-    return status === 'VERIFIED' ? 'bg-emerald-400' : status === 'CONTRADICTED' ? 'bg-rose-400' : 'bg-amber-400';
+    return status === 'VERIFIED' ? 'bg-proven' : status === 'CONTRADICTED' ? 'bg-contradicted' : 'bg-uncertain';
   }
-  return TONE[event.type] ?? 'bg-slate-500';
+  return TONE[event.type] ?? 'bg-not-proven';
 }
 
 /** Append-only record of everything that happened to this work order, newest first. */
@@ -46,8 +46,8 @@ export function AuditTrail({ events }: { events: AuditEvent[] }) {
             <li key={event.id} className="flex gap-3 text-sm">
               <span className={`mt-1.5 size-2 shrink-0 rounded-full ${tone(event)}`} aria-hidden />
               <div className="min-w-0 flex-1">
-                <p className="break-words text-slate-200">{event.summary}</p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
+                <p className="break-words text-fg">{event.summary}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-fg-faint">
                   <span className="inline-flex items-center gap-1">
                     <Icon className="size-3" aria-hidden /> {actor}
                   </span>

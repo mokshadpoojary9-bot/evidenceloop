@@ -64,10 +64,10 @@ export function Landing() {
         <ol className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm">
           {LOOP_STEPS.map((label, index) => (
             <li key={label} className="flex items-center gap-1.5">
-              <span className="rounded-lg border border-line bg-ink-900 px-2.5 py-1 font-medium text-slate-200">
+              <span className="rounded-lg border border-line bg-surface px-2.5 py-1 font-medium text-fg">
                 {label}
               </span>
-              {index < LOOP_STEPS.length - 1 && <ArrowRight className="size-3.5 text-slate-600" aria-hidden />}
+              {index < LOOP_STEPS.length - 1 && <ArrowRight className="size-3.5 text-fg-faint" aria-hidden />}
             </li>
           ))}
         </ol>
@@ -83,9 +83,9 @@ export function Landing() {
             transition={{ delay: index * 0.06 }}
             className="card p-5"
           >
-            <Icon className="size-6 text-accent" aria-hidden />
-            <h3 className="mt-3 font-semibold text-white">{title}</h3>
-            <p className="mt-1.5 text-sm text-slate-400">{body}</p>
+            <Icon className="size-6 text-accent-fg" aria-hidden />
+            <h3 className="mt-3 font-semibold text-fg">{title}</h3>
+            <p className="mt-1.5 text-sm text-fg-subtle">{body}</p>
           </motion.article>
         ))}
       </section>
@@ -152,7 +152,7 @@ function Hero() {
       >
         <div
           ref={pinned}
-          className="sticky top-3 h-[calc(100svh-6rem)] min-h-[560px] overflow-hidden rounded-3xl border border-white/10 bg-[#05070c] shadow-2xl shadow-black/50"
+          className="theme-dark sticky top-3 h-[calc(100svh-6rem)] min-h-[560px] overflow-hidden rounded-3xl border border-white/10 bg-[#05070c] shadow-2xl shadow-black/50"
         >
           {/* Static backdrop: shown at once while the 3D code loads. */}
           <div
@@ -189,28 +189,28 @@ function Hero() {
               </p>
               <h1
                 id="hero-heading"
-                className="mt-4 text-[2.25rem] leading-[1.04] font-semibold tracking-[-0.035em] text-balance text-white [text-shadow:0_2px_24px_rgb(0_0_0/0.6)] sm:text-6xl lg:text-7xl"
+                className="mt-4 text-[2.25rem] leading-[1.04] font-semibold tracking-[-0.035em] text-balance text-fg [text-shadow:0_2px_24px_rgb(0_0_0/0.6)] sm:text-6xl lg:text-7xl"
               >
                 Prove the work.{' '}
                 <span className="bg-gradient-to-r from-slate-200 to-slate-500 bg-clip-text text-transparent">
                   Don't just trust the photo.
                 </span>
               </h1>
-              <p className="mt-3 max-w-md text-[15px] text-slate-300 sm:mt-4 sm:text-lg">
+              <p className="mt-3 max-w-md text-[15px] text-fg-muted sm:mt-4 sm:text-lg">
                 EvidenceLoop checks whether photos, video and documents actually prove each requirement, and asks for
                 exactly what is missing.
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-3 sm:mt-6">
                 <Link
-                  to="/work-orders"
-                  className="group inline-flex items-center gap-2 rounded-xl bg-[#76b900] px-5 py-3 text-sm font-semibold text-black shadow-[0_0_32px_-6px_#76b900] transition hover:brightness-110 focus-visible:outline-[#a3e635]"
+                  to="/dashboard"
+                  className="group inline-flex items-center gap-2 rounded-xl bg-[#76b900] px-5 py-3 text-sm font-semibold text-accent-ink shadow-[0_0_32px_-6px_#76b900] transition hover:brightness-110 focus-visible:outline-[#a3e635]"
                 >
                   Open dashboard
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
                 </Link>
                 <Link
                   to="/work-orders/new"
-                  className="rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-100 backdrop-blur transition hover:border-white/30"
+                  className="rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-fg backdrop-blur transition hover:border-white/30"
                 >
                   Start the demo work order
                 </Link>
@@ -239,17 +239,17 @@ function Hero() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.35, ease: EASE }}
-                    className="text-sm text-slate-300 sm:text-base"
+                    className="text-sm text-fg-muted sm:text-base"
                   >
                     <span className="mr-2 font-mono text-xs text-[#a3e635]">
                       {String(station + 1).padStart(2, '0')} / {String(STATIONS.length).padStart(2, '0')}
                     </span>
-                    <strong className="font-semibold text-white">{current.label}.</strong> {current.caption}
+                    <strong className="font-semibold text-fg">{current.label}.</strong> {current.caption}
                   </motion.p>
                 </AnimatePresence>
               </div>
               <p
-                className={`mt-1 text-xs text-slate-500 transition-opacity duration-500 ${station === 0 ? 'opacity-100' : 'opacity-0'}`}
+                className={`mt-1 text-xs text-fg-faint transition-opacity duration-500 ${station === 0 ? 'opacity-100' : 'opacity-0'}`}
               >
                 Scroll to follow the evidence around the loop.
               </p>

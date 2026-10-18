@@ -1,5 +1,5 @@
 import { Archive, ArrowLeft, LoaderCircle, MapPin, Play, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { api } from '../api';
 import { useSystem, useWorkOrder } from '../hooks';
@@ -16,6 +16,7 @@ import { StatusBadge } from './StatusBadge';
 import { AiBanner } from './SystemStatus';
 import { VerificationOverview } from './VerificationOverview';
 import { WorkOrderActions } from './WorkOrderActions';
+import { Button, ButtonLink, Card, ErrorState, Loading, Skeleton, useToast } from './ui';
 
 export function WorkOrderDetail() {
   const { id = '' } = useParams();
@@ -44,17 +45,30 @@ export function WorkOrderDetail() {
   }, []);
   const openEvidence = useCallback((evidenceId: string) => setViewing({ evidenceId }), []);
 
+  // When a run finishes (on this page or elsewhere), say how it ended.
+  const toast = useToast();
+  const wasAnalyzing = useRef(false);
+  const finalStatus = detail?.workOrder.status;
+  const simulated = detail?.workOrder.simulated ?? false;
+  useEffect(() => {
+    if (wasAnalyzing.current && !analyzing && finalStatus) {
+      const label = WORK_ORDER_STATUS[finalStatus].label;
+      const text = `Verification finished: ${label}${simulated ? ' (simulated)' : ''}`;
+      if (finalStatus === 'VERIFIED') toast.success(text);
+      else toast.info(text);
+    }
+    wasAnalyzing.current = analyzing;
+  }, [analyzing, finalStatus, simulated, toast]);
+
   if (error && !detail) {
     return (
-      <div className="card mx-auto mt-10 max-w-lg p-6 text-center">
-        <p className="text-rose-300">{error}</p>
-        <Link to="/work-orders" className="btn mt-4">
-          Back to work orders
-        </Link>
+      <div className="mx-auto mt-10 max-w-lg space-y-4">
+        <ErrorState message={`Could not load this work order: ${error}`} onRetry={() => void refresh()} />
+        <ButtonLink to="/work-orders">Back to work orders</ButtonLink>
       </div>
     );
   }
-  if (!detail) return <p className="p-10 text-center text-slate-400">Loading…</p>;
+  if (!detail) return <DetailSkeleton />;
 
   const { workOrder, requirements, evidence, requests, runs, audit, permissions } = detail;
   const meta = WORK_ORDER_STATUS[workOrder.status];
@@ -77,9 +91,12 @@ export function WorkOrderDetail() {
     setActionError(null);
     try {
       await api.analyze(workOrder.id);
+      toast.info('Verification started');
       await refresh();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Could not start verification');
+      const message = err instanceof Error ? err.message : 'Could not start verification';
+      setActionError(message);
+      toast.error(message);
     } finally {
       setStarting(false);
     }
@@ -87,14 +104,14 @@ export function WorkOrderDetail() {
 
   return (
     <div className="space-y-5">
-      <Link to="/work-orders" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white">
+      <Link to="/work-orders" className="inline-flex items-center gap-1.5 text-sm text-fg-subtle hover:text-fg">
         <ArrowLeft className="size-4" aria-hidden /> Work orders
       </Link>
 
       <AiBanner system={system} />
 
       {archived && (
-        <p role="note" className="flex items-center gap-2 rounded-xl border border-line bg-ink-800 px-4 py-3 text-sm text-slate-300">
+        <p role="note" className="flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-fg-muted">
           <Archive className="size-4 shrink-0" aria-hidden />
           Archived {formatDate(workOrder.archivedAt!)}. This record is read-only until it is unarchived.
         </p>
@@ -103,8 +120,8 @@ export function WorkOrderDetail() {
       <header className="card flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-0 flex-1 basis-80">
           <p className="eyebrow">Work order</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white">{workOrder.title}</h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-slate-400">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-fg">{workOrder.title}</h1>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-fg-subtle">
             {workOrder.location && (
               <span className="inline-flex items-center gap-1">
                 <MapPin className="size-3.5" aria-hidden /> {workOrder.location}
@@ -112,16 +129,17 @@ export function WorkOrderDetail() {
             )}
             <span>Created {formatDate(workOrder.createdAt)}</span>
           </p>
-          {workOrder.description && <p className="mt-3 max-w-2xl text-sm text-slate-300">{workOrder.description}</p>}
+          {workOrder.description && <p className="mt-3 max-w-2xl text-sm text-fg-muted">{workOrder.description}</p>}
         </div>
 
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <WorkOrderActions workOrder={workOrder} canManage={permissions.manage} onChanged={() => void refresh()} />
           <StatusBadge meta={meta} size="lg" simulated={workOrder.simulated && hasRun} />
-          <p className="max-w-xs text-xs text-slate-400 sm:text-right">{meta.explanation}</p>
+          <p className="max-w-xs text-xs text-fg-subtle sm:text-right">{meta.explanation}</p>
           {permissions.manage && (
-            <button
-              className="btn btn-primary mt-1"
+            <Button
+              variant="primary"
+              className="mt-1"
               onClick={() => void runVerification()}
               disabled={verifyBlocker !== undefined || analyzing || starting}
               title={verifyBlocker}
@@ -134,9 +152,9 @@ export function WorkOrderDetail() {
                 <Play className="size-4" aria-hidden />
               )}
               {analyzing ? 'Analyzing…' : hasRun ? 'Re-run verification' : 'Run verification'}
-            </button>
+            </Button>
           )}
-          {actionError && <p className="max-w-xs text-xs text-rose-300 sm:text-right">{actionError}</p>}
+          {actionError && <p className="max-w-xs text-xs text-contradicted-fg sm:text-right">{actionError}</p>}
         </div>
       </header>
 
@@ -148,7 +166,7 @@ export function WorkOrderDetail() {
       />
 
       {lastRun?.status === 'FAILED' && (
-        <p role="alert" className="rounded-xl border border-rose-400/40 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+        <p role="alert" className="rounded-xl border border-contradicted/40 bg-contradicted/10 px-4 py-3 text-sm text-contradicted-fg">
           The last verification run failed and changed nothing: {lastRun.error}
         </p>
       )}
@@ -168,7 +186,7 @@ export function WorkOrderDetail() {
               <h2 id="checklist-heading" className="eyebrow">
                 Requirement checklist
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-fg-subtle">
                 {proven} of {requirements.length} proven
               </p>
             </div>
@@ -214,5 +232,38 @@ export function WorkOrderDetail() {
         onClose={() => setViewing(null)}
       />
     </div>
+  );
+}
+
+/** The page's shape while it loads. */
+function DetailSkeleton() {
+  return (
+    <Loading label="Loading work order…">
+      <div className="space-y-5">
+        <Skeleton className="h-4 w-28" />
+        <Card padding="lg" className="space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-2/3" />
+          <Skeleton className="h-4 w-1/3" />
+        </Card>
+        <Card padding="none" className="grid h-[380px] lg:grid-cols-[17rem_minmax(0,1fr)]">
+          <div className="space-y-3 p-5">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+          <Skeleton className="m-5 hidden rounded-card lg:block" />
+        </Card>
+        <div className="space-y-2">
+          {[0, 1, 2].map((k) => (
+            <Card key={k} className="flex items-center gap-3">
+              <Skeleton className="size-7 rounded-full" />
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </Card>
+          ))}
+        </div>
+      </div>
+    </Loading>
   );
 }

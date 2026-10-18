@@ -10,6 +10,7 @@ import {
   type WorkOrderDetail,
 } from '../types';
 import { EVIDENCE_ACCEPT, EVIDENCE_ICON, formatBytes, formatDate } from './labels';
+import { Button, FileInput, Input, Select, useToast } from './ui';
 
 interface Props {
   workOrderId: string;
@@ -60,6 +61,7 @@ export function EvidencePanel({
   }, [respondingTo]);
 
   const tooLarge = file !== null && maxUploadMb !== null && file.size > maxUploadMb * 1024 * 1024;
+  const toast = useToast();
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -74,13 +76,16 @@ export function EvidencePanel({
         requestId: respondingTo?.id ?? null,
       });
       setMessage({ text: OUTCOME_MESSAGE[result.reanalysis], error: false });
+      toast.success(`Uploaded ${file.name}`);
       setFile(null);
       setNote('');
       if (fileInput.current) fileInput.current.value = '';
       onClearRequest();
       onUploaded();
     } catch (err) {
-      setMessage({ text: err instanceof Error ? err.message : 'Upload failed', error: true });
+      const text = err instanceof Error ? err.message : 'Upload failed';
+      setMessage({ text, error: true });
+      toast.error(text);
     } finally {
       setBusy(false);
     }
@@ -93,14 +98,14 @@ export function EvidencePanel({
       </h2>
 
       {evidence.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-400">Nothing uploaded yet.</p>
+        <p className="mt-3 text-sm text-fg-subtle">Nothing uploaded yet.</p>
       ) : (
         <ul className="mt-3 space-y-2">
           {evidence.map((item) => {
             const Icon = EVIDENCE_ICON[item.kind];
             const url = fileUrl(item.url);
             return (
-              <li key={item.id} className="flex items-center gap-3 rounded-xl border border-line bg-ink-800 p-2">
+              <li key={item.id} className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 p-2">
                 <button
                   type="button"
                   className="shrink-0 rounded-lg"
@@ -110,24 +115,24 @@ export function EvidencePanel({
                   {url && item.mimeType.startsWith('image/') ? (
                     <img src={url} alt="" className="size-11 rounded-lg object-cover" loading="lazy" />
                   ) : (
-                    <span className="flex size-11 items-center justify-center rounded-lg bg-ink-700 text-slate-400">
+                    <span className="flex size-11 items-center justify-center rounded-lg bg-surface-3 text-fg-subtle">
                       <Icon className="size-5" aria-hidden />
                     </span>
                   )}
                 </button>
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className="truncate font-medium text-white">
+                  <p className="truncate font-medium text-fg">
                     <button type="button" className="max-w-full truncate text-left hover:underline" onClick={() => onOpen(item.id)}>
                       {item.fileName}
                     </button>
                   </p>
-                  <p className="truncate text-xs text-slate-400">
+                  <p className="truncate text-xs text-fg-subtle">
                     {EVIDENCE_KIND_LABELS[item.kind]} · {formatBytes(item.sizeBytes)} · {formatDate(item.createdAt)}
                   </p>
-                  <p className="truncate font-mono text-[10px] text-slate-500" title={`SHA-256 ${item.sha256}`}>
+                  <p className="truncate font-mono text-[10px] text-fg-faint" title={`SHA-256 ${item.sha256}`}>
                     sha256 {item.sha256.slice(0, 16)}…
                   </p>
-                  {item.note && <p className="mt-0.5 text-xs text-slate-400 italic">“{item.note}”</p>}
+                  {item.note && <p className="mt-0.5 text-xs text-fg-subtle italic">“{item.note}”</p>}
                 </div>
               </li>
             );
@@ -136,11 +141,11 @@ export function EvidencePanel({
       )}
 
       {readOnlyReason ? (
-        <p className="mt-4 border-t border-line pt-4 text-sm text-slate-400">{readOnlyReason} Uploads are disabled.</p>
+        <p className="mt-4 border-t border-line pt-4 text-sm text-fg-subtle">{readOnlyReason} Uploads are disabled.</p>
       ) : (
         <form ref={form} onSubmit={handleSubmit} className="mt-4 space-y-3 border-t border-line pt-4">
           {respondingTo && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2.5 text-xs text-amber-100">
+            <div className="flex items-start gap-2 rounded-lg border border-uncertain/40 bg-uncertain/10 p-2.5 text-xs text-uncertain-fg">
               <p className="flex-1">
                 <strong>Answering request:</strong> {respondingTo.instruction}
               </p>
@@ -152,8 +157,7 @@ export function EvidencePanel({
 
           <label className="block text-sm">
             <span className="mb-1 block font-semibold">Evidence type</span>
-            <select
-              className="input"
+            <Select
               value={kind}
               disabled={respondingTo !== null}
               onChange={(event) => {
@@ -167,28 +171,25 @@ export function EvidencePanel({
                   {EVIDENCE_KIND_LABELS[value]}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
 
           <label className="block text-sm">
             <span className="mb-1 block font-semibold">File</span>
-            <input
+            <FileInput
               ref={fileInput}
-              type="file"
               accept={EVIDENCE_ACCEPT[kind]}
               required
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              className="input file:mr-3 file:rounded-md file:border-0 file:bg-ink-700 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-slate-100"
             />
-            {tooLarge && <span className="mt-1 block text-xs text-rose-300">Larger than the {maxUploadMb} MB limit.</span>}
+            {tooLarge && <span className="mt-1 block text-xs text-contradicted-fg">Larger than the {maxUploadMb} MB limit.</span>}
           </label>
 
           <label className="block text-sm">
             <span className="mb-1 block font-semibold">
-              Note <span className="font-normal text-slate-500">(optional)</span>
+              Note <span className="font-normal text-fg-faint">(optional)</span>
             </span>
-            <input
-              className="input"
+            <Input
               value={note}
               maxLength={1000}
               onChange={(event) => setNote(event.target.value)}
@@ -196,13 +197,13 @@ export function EvidencePanel({
             />
           </label>
 
-          <button type="submit" className="btn btn-primary w-full" disabled={!file || tooLarge || busy}>
+          <Button type="submit" variant="primary" className="w-full" disabled={!file || tooLarge || busy}>
             {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Upload className="size-4" aria-hidden />}
             {busy ? 'Uploading…' : 'Upload evidence'}
-          </button>
+          </Button>
 
           {message && (
-            <p role="status" className={`text-xs ${message.error ? 'text-rose-300' : 'text-slate-300'}`}>
+            <p role="status" className={`text-xs ${message.error ? 'text-contradicted-fg' : 'text-fg-muted'}`}>
               {message.text}
             </p>
           )}

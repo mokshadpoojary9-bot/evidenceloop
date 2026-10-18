@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { MessageSquareWarning, Upload } from 'lucide-react';
 import { EVIDENCE_KIND_LABELS, type EvidenceRequest, type Requirement } from '../types';
 import { EVIDENCE_ICON } from './labels';
+import { Button } from './ui';
 
 interface Props {
   requests: EvidenceRequest[];
@@ -17,8 +18,8 @@ export function EvidenceRequests({ requests, requirements, onRespond }: Props) {
   const positionById = new Map(requirements.map((r) => [r.id, r.position]));
 
   return (
-    <section aria-labelledby="requests-heading" className="rounded-2xl border border-amber-400/40 bg-amber-400/[0.07] p-4">
-      <h2 id="requests-heading" className="flex items-center gap-2 font-semibold text-amber-200">
+    <section aria-labelledby="requests-heading" className="rounded-2xl border border-uncertain/40 bg-uncertain/[0.07] p-4">
+      <h2 id="requests-heading" className="flex items-center gap-2 font-semibold text-uncertain-fg">
         <MessageSquareWarning className="size-5" aria-hidden />
         Additional evidence needed ({open.length})
       </h2>
@@ -34,21 +35,21 @@ export function EvidenceRequests({ requests, requirements, onRespond }: Props) {
               key={request.id}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-ink-900 p-3"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-3"
             >
-              <Icon className="size-5 shrink-0 text-amber-300" aria-hidden />
+              <Icon className="size-5 shrink-0 text-uncertain-fg" aria-hidden />
               <div className="min-w-0 flex-1 basis-64">
-                <p className="font-medium text-white">{request.instruction}</p>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="font-medium text-fg">{request.instruction}</p>
+                <p className="mt-0.5 text-xs text-fg-subtle">
                   {request.requestedBy === 'agent' ? 'Requested by the agent' : 'Requested by a reviewer'} ·{' '}
                   {EVIDENCE_KIND_LABELS[request.kind]} · would address requirement{positions.length === 1 ? '' : 's'}{' '}
                   {positions.join(', ')}
                 </p>
               </div>
               {onRespond && (
-                <button className="btn btn-primary" onClick={() => onRespond(request)}>
+                <Button variant="primary" onClick={() => onRespond(request)}>
                   <Upload className="size-4" aria-hidden /> Upload
-                </button>
+                </Button>
               )}
             </motion.li>
           );

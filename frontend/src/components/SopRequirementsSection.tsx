@@ -24,7 +24,7 @@ export function SopRequirementsSection({ workOrder, system, onSaved }: Props) {
         onClick={() => setOpen((value) => !value)}
       >
         Add requirements from an SOP or manual
-        <ChevronDown className={`size-4 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+        <ChevronDown className={`size-4 text-fg-faint transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
       </button>
       {open && (
         <div className="border-t border-line p-4">

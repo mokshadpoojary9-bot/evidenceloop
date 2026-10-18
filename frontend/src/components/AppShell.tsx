@@ -1,73 +1,299 @@
-import { LogOut, UserRound } from 'lucide-react';
-import { Link, NavLink, Outlet } from 'react-router';
+import { motion } from 'framer-motion';
+import {
+  ClipboardList,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Moon,
+  Plus,
+  Sparkles,
+  Sun,
+  UserRound,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../auth';
 import { useSystem } from '../hooks';
+import { useTheme } from '../lib/theme';
 import { DISCLAIMER, type Role } from '../types';
 import { useViewer } from '../viewer';
-import { AiPill } from './SystemStatus';
+import { AiPill, SystemChips } from './SystemStatus';
+import { Button, Select } from './ui';
 
-export function AppShell() {
+// Two layouts: the public pages (landing, sign-in) keep a top bar so the hero can use the
+// full width; the signed-in app has a sidebar on desktop and a drawer on mobile.
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  isActive: (path: string) => boolean;
+  technicianOnly?: boolean;
+}
+
+const NAV: NavItem[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, isActive: (p) => p === '/dashboard' },
+  {
+    to: '/work-orders',
+    label: 'Work orders',
+    icon: ClipboardList,
+    isActive: (p) => p.startsWith('/work-orders') && p !== '/work-orders/new',
+  },
+  { to: '/work-orders/new', label: 'New work order', icon: Plus, isActive: (p) => p === '/work-orders/new', technicianOnly: true },
+  { to: '/', label: 'About EvidenceLoop', icon: Sparkles, isActive: (p) => p === '/' },
+];
+
+export function AppLayout() {
+  const { viewer } = useViewer();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen flex-col lg:pl-sidebar">
+      <SkipLink />
+
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-sidebar flex-col border-r border-line bg-surface/85 backdrop-blur lg:flex">
+        <SidebarContent />
+      </aside>
+
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-canvas/85 px-4 py-2.5 backdrop-blur lg:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open navigation"
+          aria-expanded={drawerOpen}
+          aria-controls="nav-drawer"
+        >
+          <Menu className="size-5" aria-hidden />
+        </Button>
+        <Logo compact />
+        <ThemeToggle />
+      </header>
+
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <SidebarContent onNavigate={() => setDrawerOpen(false)} onClose={() => setDrawerOpen(false)} />
+      </Drawer>
+
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
+        <PageTransition>
+          {/* Remount pages when the acting user changes, so everything is re-fetched for that role. */}
+          <Outlet key={viewer?.id ?? 'signed-out'} />
+        </PageTransition>
+      </main>
+
+      <Footer className="px-4 sm:px-6 lg:px-8" />
+    </div>
+  );
+}
+
+export function PublicLayout() {
   const { system, error } = useSystem();
-  const auth = useAuth();
-  const { viewer, switchDemoRole } = useViewer();
+  const { viewer } = useViewer();
 
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 sm:px-6">
+      <SkipLink />
       <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4">
-        <Link to="/" className="flex items-center gap-3">
-          <img src="/favicon.svg" alt="" width={30} height={30} />
-          <span>
-            <span className="block text-lg leading-tight font-bold tracking-tight text-white">EvidenceLoop</span>
-            <span className="block text-xs text-slate-400">Prove the work. Don't just trust the photo.</span>
-          </span>
-        </Link>
-
-        <nav className="flex flex-wrap items-center gap-3 text-sm">
+        <Logo />
+        <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="Main">
           <NavLink
-            to="/work-orders"
+            to="/dashboard"
             className={({ isActive }) =>
-              `rounded-lg px-3 py-1.5 font-semibold ${isActive ? 'bg-ink-700 text-white' : 'text-slate-300 hover:text-white'}`
+              `rounded-lg px-3 py-1.5 font-semibold ${isActive ? 'bg-surface-3 text-fg' : 'text-fg-muted hover:text-fg'}`
             }
           >
-            Work orders
+            Dashboard
           </NavLink>
           <AiPill system={system} error={error} />
-          {viewer?.roleSource === 'demo' ? (
-            <label className="inline-flex items-center gap-1.5 text-xs text-slate-400" title="Local development only: act as the demo technician or reviewer">
-              <UserRound className="size-3.5" aria-hidden />
-              <span className="sr-only">Demo role</span>
-              <select
-                className="input w-auto py-1 text-xs"
-                value={viewer.role}
-                onChange={(event) => switchDemoRole(event.target.value as Role)}
-              >
-                <option value="technician">Demo: Technician</option>
-                <option value="reviewer">Demo: Reviewer</option>
-              </select>
-            </label>
-          ) : (
-            viewer && (
-              <span className="inline-flex items-center gap-1 text-xs text-slate-400 capitalize">
-                <UserRound className="size-3.5" aria-hidden /> {viewer.role}
-              </span>
-            )
-          )}
-          {auth.session && (
-            <button className="btn px-2.5 py-1.5" onClick={() => void auth.signOut()} title={auth.session.user.email}>
-              <LogOut className="size-4" aria-hidden /> Sign out
-            </button>
-          )}
+          <RoleControl />
+          <ThemeToggle />
+          {viewer && <SignOut />}
         </nav>
       </header>
-
-      <main className="flex-1 pb-12">
-        {/* Remount pages when the acting user changes, so everything is re-fetched for that role. */}
-        <Outlet key={viewer?.id ?? 'signed-out'} />
+      <main id="main" tabIndex={-1} className="flex-1 pb-12 outline-none">
+        <PageTransition>
+          <Outlet key={viewer?.id ?? 'signed-out'} />
+        </PageTransition>
       </main>
-
-      <footer className="border-t border-line py-5 text-xs text-slate-500">
-        <p>{DISCLAIMER}</p>
-      </footer>
+      <Footer />
     </div>
+  );
+}
+
+function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
+  const { pathname } = useLocation();
+  const { system, error } = useSystem();
+  const { viewer } = useViewer();
+  const items = NAV.filter((item) => !item.technicianOnly || viewer?.role !== 'reviewer');
+
+  return (
+    <div className="flex h-full flex-col gap-6 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <Logo onClick={onNavigate} />
+        {onClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close navigation">
+            <X className="size-5" aria-hidden />
+          </Button>
+        )}
+      </div>
+
+      <nav aria-label="Main">
+        <ul className="space-y-1">
+          {items.map(({ to, label, icon: Icon, isActive }) => {
+            const active = isActive(pathname);
+            return (
+              <li key={to}>
+                <Link
+                  to={to}
+                  onClick={onNavigate}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex items-center gap-3 rounded-control px-3 py-2 text-sm font-semibold transition-colors ${
+                    active
+                      ? 'bg-accent/12 text-fg shadow-[inset_3px_0_0_var(--color-accent)]'
+                      : 'text-fg-muted hover:bg-surface-2 hover:text-fg'
+                  }`}
+                >
+                  <Icon className={`size-4.5 ${active ? 'text-accent-fg' : 'text-fg-faint'}`} aria-hidden />
+                  {label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div className="mt-auto space-y-4">
+        <div className="space-y-1.5">
+          <p className="eyebrow">System</p>
+          <SystemChips system={system} error={error} />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+          <RoleControl />
+          <span className="flex items-center gap-1">
+            <ThemeToggle />
+            {viewer && <SignOut compact />}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mobile navigation: a native modal dialog, so focus is trapped and Esc closes it. */
+function Drawer({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={ref}
+      id="nav-drawer"
+      aria-label="Navigation"
+      onClose={onClose}
+      onClick={(event) => event.target === ref.current && onClose()}
+      className="m-0 h-dvh max-h-none w-72 max-w-[85vw] border-r border-line bg-surface p-0 text-fg-muted backdrop:bg-black/60 lg:hidden"
+    >
+      {open && children}
+    </dialog>
+  );
+}
+
+function Logo({ compact = false, onClick }: { compact?: boolean; onClick?: () => void }) {
+  return (
+    <Link to="/" onClick={onClick} className="flex items-center gap-2.5 rounded-control">
+      <img src="/favicon.svg" alt="" width={compact ? 26 : 30} height={compact ? 26 : 30} />
+      <span>
+        <span className="block leading-tight font-bold tracking-tight text-fg">EvidenceLoop</span>
+        {!compact && <span className="block text-xs text-fg-subtle">Prove the work.</span>}
+      </span>
+    </Link>
+  );
+}
+
+export function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  const next = theme === 'light' ? 'dark' : 'light';
+  return (
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label={`Switch to ${next} mode`} title={`Switch to ${next} mode`}>
+      {theme === 'light' ? <Moon className="size-4.5" aria-hidden /> : <Sun className="size-4.5" aria-hidden />}
+    </Button>
+  );
+}
+
+/** Local development: switch between the demo technician and reviewer. Otherwise the role. */
+function RoleControl() {
+  const { viewer, switchDemoRole } = useViewer();
+  if (!viewer) return null;
+  if (viewer.roleSource === 'demo') {
+    return (
+      <label
+        className="inline-flex items-center gap-1.5 text-xs text-fg-subtle"
+        title="Local development only: act as the demo technician or reviewer"
+      >
+        <UserRound className="size-3.5" aria-hidden />
+        <span className="sr-only">Demo role</span>
+        <Select className="w-auto py-1 text-xs" value={viewer.role} onChange={(event) => switchDemoRole(event.target.value as Role)}>
+          <option value="technician">Demo: Technician</option>
+          <option value="reviewer">Demo: Reviewer</option>
+        </Select>
+      </label>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-fg-subtle capitalize">
+      <UserRound className="size-3.5" aria-hidden /> {viewer.role}
+    </span>
+  );
+}
+
+function SignOut({ compact = false }: { compact?: boolean }) {
+  const auth = useAuth();
+  if (!auth.session) return null;
+  return (
+    <Button
+      variant="ghost"
+      size={compact ? 'icon' : 'sm'}
+      onClick={() => void auth.signOut()}
+      title={auth.session.user.email}
+      aria-label="Sign out"
+    >
+      <LogOut className="size-4" aria-hidden /> {!compact && 'Sign out'}
+    </Button>
+  );
+}
+
+function SkipLink() {
+  return (
+    <a
+      href="#main"
+      className="sr-only z-50 rounded-control bg-accent px-3 py-2 text-sm font-semibold text-accent-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+    >
+      Skip to content
+    </a>
+  );
+}
+
+/** A short fade-and-rise on navigation. MotionConfig (App) drops the movement under reduced motion. */
+function PageTransition({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return (
+    <motion.div key={pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
+      {children}
+    </motion.div>
+  );
+}
+
+function Footer({ className = '' }: { className?: string }) {
+  return (
+    <footer className={`border-t border-line py-5 text-xs text-fg-faint ${className}`}>
+      <p>{DISCLAIMER}</p>
+    </footer>
   );
 }

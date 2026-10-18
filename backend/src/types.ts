@@ -293,6 +293,38 @@ export interface WorkOrderSummary extends WorkOrder {
   openRequestCount: number;
 }
 
+/** The dashboard's count cards, in display order. AWAITING_EVIDENCE is shown as "Draft". */
+export const DASHBOARD_BUCKETS = ['VERIFIED', 'NEEDS_EVIDENCE', 'IN_REVIEW', 'CONTRADICTED', 'AWAITING_EVIDENCE'] as const;
+export type DashboardBucket = (typeof DASHBOARD_BUCKETS)[number];
+
+export interface DashboardData {
+  /** Non-archived work orders the user can see, by status. */
+  counts: Record<DashboardBucket, number>;
+  /** Open evidence requests, newest first. */
+  openRequests: {
+    id: string;
+    workOrderId: string;
+    workOrderTitle: string;
+    kind: EvidenceKind;
+    instruction: string;
+    requirementTitles: string[];
+    createdAt: string;
+  }[];
+  /** Work orders waiting for a reviewer's decision, oldest submission first. */
+  awaitingReview: { workOrderId: string; title: string; location: string; submittedAt: string }[];
+  /** The latest audit events across the user's work orders, newest first. */
+  activity: {
+    id: string;
+    workOrderId: string;
+    workOrderTitle: string;
+    type: string;
+    summary: string;
+    /** "You", "Agent", "System", "Reviewer", "Technician" — never an email or id. */
+    actor: string;
+    createdAt: string;
+  }[];
+}
+
 export interface WorkOrderDetail {
   workOrder: WorkOrder;
   requirements: (Requirement & { assessment: Assessment | null })[];

@@ -123,8 +123,8 @@ export function LoopVisual(props: Props) {
               style={{ opacity: 0 }}
               className={`absolute top-0 left-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide whitespace-nowrap backdrop-blur-sm transition-colors duration-500 ${
                 k === props.activeStation
-                  ? 'border-[#76b900]/60 bg-[#76b900]/15 text-white'
-                  : 'border-white/10 bg-black/40 text-slate-300 max-sm:hidden'
+                  ? 'border-[#76b900]/60 bg-[#76b900]/15 text-fg'
+                  : 'border-white/10 bg-black/40 text-fg-muted max-sm:hidden'
               }`}
             >
               {station.label}

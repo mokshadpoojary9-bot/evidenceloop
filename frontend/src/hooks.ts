@@ -148,3 +148,27 @@ export function usePolling(poll: () => void, intervalMs: number, enabled: boolea
     };
   }, [intervalMs, enabled]);
 }
+
+/**
+ * Keeps a page current. With Supabase: a Realtime subscription to `tables` (row-level
+ * security limits what arrives), removed on unmount. Without it: polling every 5 s while
+ * the tab is visible. Pass `tables` as a module-level constant.
+ */
+export function useLiveRefresh(refresh: () => void, channelName: string, tables: readonly string[]) {
+  usePolling(refresh, LOCAL_POLL_MS, !realtimeAvailable);
+  const latest = useRef(refresh);
+  useEffect(() => {
+    latest.current = refresh;
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+    let channel = client.channel(channelName);
+    for (const table of tables) {
+      channel = channel.on('postgres_changes', { event: '*', schema: 'public', table }, () => latest.current());
+    }
+    channel.subscribe();
+    return () => void client.removeChannel(channel);
+  }, [channelName, tables]);
+}

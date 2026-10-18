@@ -2,6 +2,7 @@ import { LoaderCircle, MailCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from '../auth';
+import { Button, Input } from './ui';
 
 export function Login() {
   const auth = useAuth();
@@ -14,7 +15,7 @@ export function Login() {
   /** Set after a sign-up that still needs the emailed confirmation link. */
   const [awaitingConfirmation, setAwaitingConfirmation] = useState<string | null>(null);
 
-  const destination = (location.state as { from?: string } | null)?.from ?? '/work-orders';
+  const destination = (location.state as { from?: string } | null)?.from ?? '/dashboard';
   if (!auth.enabled || auth.session) return <Navigate to={destination} replace />;
 
   const handleSubmit = async (event: FormEvent) => {
@@ -40,16 +41,16 @@ export function Login() {
   if (awaitingConfirmation) {
     return (
       <div role="status" className="card mx-auto mt-10 max-w-sm space-y-4 p-6 text-center">
-        <MailCheck className="mx-auto size-10 text-emerald-300" aria-hidden />
-        <h1 className="text-xl font-bold text-white">Check your email</h1>
-        <p className="text-sm text-slate-300">
-          We sent a confirmation link to <strong className="text-white">{awaitingConfirmation}</strong>. Open it to
+        <MailCheck className="mx-auto size-10 text-proven-fg" aria-hidden />
+        <h1 className="text-xl font-bold text-fg">Check your email</h1>
+        <p className="text-sm text-fg-muted">
+          We sent a confirmation link to <strong className="text-fg">{awaitingConfirmation}</strong>. Open it to
           activate your account; you will be signed in here. You cannot sign in until the address is confirmed.
         </p>
-        <p className="text-xs text-slate-400">No email after a few minutes? Check your spam folder.</p>
-        <button
+        <p className="text-xs text-fg-subtle">No email after a few minutes? Check your spam folder.</p>
+        <Button
           type="button"
-          className="btn w-full"
+          className="w-full"
           onClick={() => {
             setAwaitingConfirmation(null);
             setMode('sign-in');
@@ -57,18 +58,17 @@ export function Login() {
           }}
         >
           Back to sign in
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="card mx-auto mt-10 max-w-sm space-y-4 p-6">
-      <h1 className="text-xl font-bold text-white">{mode === 'sign-in' ? 'Sign in' : 'Create an account'}</h1>
+      <h1 className="text-xl font-bold text-fg">{mode === 'sign-in' ? 'Sign in' : 'Create an account'}</h1>
       <label className="block text-sm">
         <span className="mb-1 block font-semibold">Email</span>
-        <input
-          className="input"
+        <Input
           type="email"
           autoComplete="email"
           value={email}
@@ -78,8 +78,7 @@ export function Login() {
       </label>
       <label className="block text-sm">
         <span className="mb-1 block font-semibold">Password</span>
-        <input
-          className="input"
+        <Input
           type="password"
           autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
           minLength={6}
@@ -89,17 +88,17 @@ export function Login() {
         />
       </label>
       {message && (
-        <p role="status" className={`text-sm ${message.error ? 'text-rose-300' : 'text-emerald-300'}`}>
+        <p role="status" className={`text-sm ${message.error ? 'text-contradicted-fg' : 'text-proven-fg'}`}>
           {message.text}
         </p>
       )}
-      <button type="submit" className="btn btn-primary w-full" disabled={busy}>
+      <Button type="submit" variant="primary" className="w-full" disabled={busy}>
         {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
         {mode === 'sign-in' ? 'Sign in' : 'Sign up'}
-      </button>
+      </Button>
       <button
         type="button"
-        className="w-full text-center text-sm text-slate-400 hover:text-white"
+        className="w-full text-center text-sm text-fg-subtle hover:text-fg"
         onClick={() => {
           setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in');
           setMessage(null);

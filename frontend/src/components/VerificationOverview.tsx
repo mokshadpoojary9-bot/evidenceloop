@@ -52,7 +52,7 @@ export function VerificationOverview({ detail, coreHex, onSelectRequirement, onO
             </h2>
             <button
               type="button"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-fg-subtle hover:text-fg"
               aria-expanded={open}
               aria-controls="verification-graph"
               onClick={toggle}
@@ -61,17 +61,17 @@ export function VerificationOverview({ detail, coreHex, onSelectRequirement, onO
               <ChevronDown className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
             </button>
           </div>
-          <p className="text-lg leading-snug font-semibold text-white" aria-live="polite">
+          <p className="text-lg leading-snug font-semibold text-fg" aria-live="polite">
             {summary}
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-fg-subtle">
             {detail.evidence.length} evidence {detail.evidence.length === 1 ? 'file' : 'files'} · {openRequests} open{' '}
             {openRequests === 1 ? 'request' : 'requests'}
           </p>
 
           {open && (
             <>
-              <ul className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-300" aria-label="Legend">
+              <ul className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-fg-muted" aria-label="Legend">
                 {LEGEND.map((status) => (
                   <li key={status} className="inline-flex items-center gap-1.5">
                     <span className="size-2.5 rounded-full" style={{ backgroundColor: REQUIREMENT_STATUS[status].hex }} aria-hidden />
@@ -80,16 +80,16 @@ export function VerificationOverview({ detail, coreHex, onSelectRequirement, onO
                   </li>
                 ))}
                 <li className="inline-flex items-center gap-1.5">
-                  <span className="h-0.5 w-4 bg-slate-200" aria-hidden /> Direct observation
+                  <span className="h-0.5 w-4 bg-fg" aria-hidden /> Direct observation
                 </li>
                 <li className="inline-flex items-center gap-1.5">
-                  <span className="h-0.5 w-4 bg-slate-200/35" aria-hidden /> Inferred
+                  <span className="h-0.5 w-4 bg-fg/35" aria-hidden /> Inferred
                 </li>
                 <li className="inline-flex items-center gap-1.5">
                   <span className="size-2 rotate-45 bg-[#f5a524]" aria-hidden /> Evidence requested
                 </li>
               </ul>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-fg-faint">
                 Outer ring: requirements. Inner ring: evidence files. Hover for details; select a requirement to find
                 it in the checklist, or a file to open it. Drag sideways to turn.
               </p>
@@ -98,7 +98,7 @@ export function VerificationOverview({ detail, coreHex, onSelectRequirement, onO
         </div>
 
         {open && (
-          <div id="verification-graph" className="border-t border-line lg:border-t-0 lg:border-l">
+          <div id="verification-graph" className="theme-dark border-t border-line bg-canvas lg:border-t-0 lg:border-l">
             <LoopVisual
               variant="graph"
               className="relative h-[340px] sm:h-[380px]"

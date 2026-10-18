@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { fileUrl } from '../api';
 import { describeInspection } from '../lib/inspection';
 import { EVIDENCE_KIND_LABELS, type AiMode, type Observation, type WorkOrderDetail } from '../types';
-import { Dialog } from './Dialog';
+import { Button, Modal } from './ui';
 import { formatBytes, formatDate, formatSeconds, REQUIREMENT_STATUS } from './labels';
 import { StatusBadge } from './StatusBadge';
 
@@ -28,7 +28,7 @@ export function EvidenceViewer({ detail, aiMode, target, onNavigate, onClose }: 
   const item = index >= 0 ? evidence[index] : undefined;
 
   return (
-    <Dialog open={item !== undefined} title={item ? item.fileName : 'Evidence'} onClose={onClose} size="xl">
+    <Modal open={item !== undefined} title={item ? item.fileName : 'Evidence'} onClose={onClose} size="xl">
       {item && (
         <ViewerBody
           key={item.id}
@@ -45,7 +45,7 @@ export function EvidenceViewer({ detail, aiMode, target, onNavigate, onClose }: 
           onStep={(step) => onNavigate({ evidenceId: evidence[(index + step + evidence.length) % evidence.length]!.id })}
         />
       )}
-    </Dialog>
+    </Modal>
   );
 }
 
@@ -88,9 +88,9 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-2">
-        <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-xl border border-line bg-ink-950">
+        <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-xl border border-line bg-field">
           {!url ? (
-            <p className="p-6 text-sm text-slate-400">This file cannot be displayed (no URL available).</p>
+            <p className="p-6 text-sm text-fg-subtle">This file cannot be displayed (no URL available).</p>
           ) : item.mimeType.startsWith('image/') ? (
             <ZoomableImage src={url} alt={`${EVIDENCE_KIND_LABELS[item.kind]}: ${item.fileName}`} />
           ) : item.mimeType.startsWith('video/') ? (
@@ -102,19 +102,19 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
           ) : item.mimeType.startsWith('text/') ? (
             <TextPreview url={url} />
           ) : (
-            <p className="p-6 text-sm text-slate-400">No preview for {item.mimeType}.</p>
+            <p className="p-6 text-sm text-fg-subtle">No preview for {item.mimeType}.</p>
           )}
         </div>
-        <div className="flex items-center justify-between text-xs text-slate-400">
-          <button className="btn px-2 py-1 text-xs" onClick={() => onStep(-1)} disabled={position.total < 2}>
+        <div className="flex items-center justify-between text-xs text-fg-subtle">
+          <Button size="sm" onClick={() => onStep(-1)} disabled={position.total < 2}>
             <ChevronLeft className="size-3.5" aria-hidden /> Previous
-          </button>
+          </Button>
           <span>
             {position.index + 1} of {position.total}
           </span>
-          <button className="btn px-2 py-1 text-xs" onClick={() => onStep(1)} disabled={position.total < 2}>
+          <Button size="sm" onClick={() => onStep(1)} disabled={position.total < 2}>
             Next <ChevronRight className="size-3.5" aria-hidden />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -122,19 +122,19 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
         <section>
           <h3 className="eyebrow mb-1.5">File</h3>
           <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
-            <dt className="text-slate-500">Type</dt>
+            <dt className="text-fg-faint">Type</dt>
             <dd>{EVIDENCE_KIND_LABELS[item.kind]}</dd>
-            <dt className="text-slate-500">Format</dt>
+            <dt className="text-fg-faint">Format</dt>
             <dd>
               {item.mimeType} · {formatBytes(item.sizeBytes)}
             </dd>
-            <dt className="text-slate-500">Uploaded</dt>
+            <dt className="text-fg-faint">Uploaded</dt>
             <dd>{formatDate(item.createdAt)}</dd>
-            <dt className="text-slate-500">SHA-256</dt>
+            <dt className="text-fg-faint">SHA-256</dt>
             <dd className="flex items-start gap-1">
-              <code className="font-mono text-[10px] break-all text-slate-300">{item.sha256}</code>
+              <code className="font-mono text-[10px] break-all text-fg-muted">{item.sha256}</code>
               <button
-                className="shrink-0 text-slate-400 hover:text-white"
+                className="shrink-0 text-fg-subtle hover:text-fg"
                 aria-label="Copy SHA-256"
                 onClick={() =>
                   void navigator.clipboard?.writeText(item.sha256).then(
@@ -145,17 +145,17 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
               >
                 <Copy className="size-3.5" aria-hidden />
               </button>
-              {copied && <span className="text-[10px] text-emerald-300">copied</span>}
+              {copied && <span className="text-[10px] text-proven-fg">copied</span>}
             </dd>
           </dl>
           {item.note && (
-            <p className="mt-2 text-xs text-slate-400">
-              <span className="font-semibold text-slate-300">Uploader’s note</span> (a claim, not proof): “{item.note}”
+            <p className="mt-2 text-xs text-fg-subtle">
+              <span className="font-semibold text-fg-muted">Uploader’s note</span> (a claim, not proof): “{item.note}”
             </p>
           )}
-          {request && <p className="mt-2 text-xs text-slate-400">Answers the request: {request.instruction}</p>}
+          {request && <p className="mt-2 text-xs text-fg-subtle">Answers the request: {request.instruction}</p>}
           {url && (
-            <a href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-accent hover:underline">
+            <a href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-accent-fg hover:underline">
               <ExternalLink className="size-3" aria-hidden /> Open original
             </a>
           )}
@@ -165,7 +165,7 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
           <h3 className="eyebrow mb-1.5">What the AI can inspect</h3>
           <p
             className={`flex gap-1.5 text-xs ${
-              inspection.tone === 'ok' ? 'text-emerald-300' : inspection.tone === 'partial' ? 'text-amber-200' : 'text-rose-200'
+              inspection.tone === 'ok' ? 'text-proven-fg' : inspection.tone === 'partial' ? 'text-uncertain-fg' : 'text-contradicted-fg'
             }`}
           >
             {inspection.tone === 'none' ? (
@@ -176,8 +176,8 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
             {inspection.summary}
           </p>
           {inspection.notInspected && (
-            <p className="mt-1 text-xs text-slate-400">
-              <span className="font-semibold text-slate-300">Not inspected:</span> {inspection.notInspected}
+            <p className="mt-1 text-xs text-fg-subtle">
+              <span className="font-semibold text-fg-muted">Not inspected:</span> {inspection.notInspected}
             </p>
           )}
         </section>
@@ -185,21 +185,21 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
         <section>
           <h3 className="eyebrow mb-1.5">Observations citing this file ({observations.length})</h3>
           {observations.length === 0 ? (
-            <p className="text-xs text-slate-400">No current assessment cites this file.</p>
+            <p className="text-xs text-fg-subtle">No current assessment cites this file.</p>
           ) : (
             <ul className="max-h-72 space-y-2 overflow-y-auto pr-1">
               {observations.map(({ observation, requirement }, i) => (
-                <li key={i} className="rounded-lg border border-line bg-ink-800 p-2 text-xs">
+                <li key={i} className="rounded-lg border border-line bg-surface-2 p-2 text-xs">
                   <p className="mb-1 flex flex-wrap items-center gap-1.5">
-                    <span className="font-semibold text-white">
+                    <span className="font-semibold text-fg">
                       {requirement.position}. {requirement.title}
                     </span>
                     <StatusBadge meta={REQUIREMENT_STATUS[requirement.status]} />
                   </p>
-                  <p className="text-slate-300">
+                  <p className="text-fg-muted">
                     <span
                       className={`mr-1 rounded px-1 text-[10px] font-bold uppercase ${
-                        observation.kind === 'direct' ? 'bg-emerald-400/15 text-emerald-300' : 'bg-violet-400/15 text-violet-300'
+                        observation.kind === 'direct' ? 'bg-proven/15 text-proven-fg' : 'bg-review/15 text-review-fg'
                       }`}
                     >
                       {observation.kind}
@@ -208,7 +208,7 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
                   </p>
                   {observation.startSec !== null && (
                     <button
-                      className="mt-1 inline-flex items-center gap-1 text-accent hover:underline disabled:text-slate-500 disabled:no-underline"
+                      className="mt-1 inline-flex items-center gap-1 text-accent-fg hover:underline disabled:text-fg-faint disabled:no-underline"
                       onClick={() => seek(observation.startSec!)}
                       disabled={!item.mimeType.startsWith('video/') && !item.mimeType.startsWith('audio/')}
                     >
@@ -236,13 +236,14 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
         alt={alt}
         className={zoomed ? 'max-w-none' : 'mx-auto max-h-[65vh] w-auto object-contain'}
       />
-      <button
-        className="btn absolute top-2 right-2 px-2 py-1 text-xs"
+      <Button
+        size="sm"
+        className="absolute top-2 right-2"
         onClick={() => setZoomed((value) => !value)}
         aria-label={zoomed ? 'Fit to view' : 'Actual size'}
       >
         {zoomed ? <ZoomOut className="size-3.5" aria-hidden /> : <ZoomIn className="size-3.5" aria-hidden />}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -264,10 +265,10 @@ function TextPreview({ url }: { url: string }) {
       cancelled = true;
     };
   }, [url]);
-  if (error) return <p className="p-6 text-sm text-rose-300">Could not load the file.</p>;
-  if (text === null) return <p className="p-6 text-sm text-slate-400">Loading…</p>;
+  if (error) return <p className="p-6 text-sm text-contradicted-fg">Could not load the file.</p>;
+  if (text === null) return <p className="p-6 text-sm text-fg-subtle">Loading…</p>;
   return (
-    <pre className="max-h-[65vh] w-full overflow-auto p-4 font-mono text-xs whitespace-pre-wrap text-slate-200">
+    <pre className="max-h-[65vh] w-full overflow-auto p-4 font-mono text-xs whitespace-pre-wrap text-fg">
       {text.slice(0, MAX_PREVIEW_CHARS)}
       {text.length > MAX_PREVIEW_CHARS && '\n… (preview truncated)'}
     </pre>

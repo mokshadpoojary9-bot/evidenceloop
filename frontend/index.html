@@ -10,6 +10,17 @@
     <meta name="theme-color" content="#070a12" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>EvidenceLoop — Prove the work</title>
+    <script>
+      // Theme before first paint: the saved choice, else the system preference.
+      (function () {
+        var saved = null;
+        try {
+          saved = localStorage.getItem('evidenceloop.theme');
+        } catch (e) {}
+        var light = saved ? saved === 'light' : matchMedia('(prefers-color-scheme: light)').matches;
+        document.documentElement.dataset.theme = light ? 'light' : 'dark';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

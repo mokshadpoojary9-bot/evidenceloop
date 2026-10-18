@@ -166,9 +166,55 @@ it are the file's metadata and full SHA-256, **what the AI can actually inspect*
 type (and what it cannot — e.g. a video's soundtrack, a scanned PDF), and every observation that
 cites the file. Clicking a video observation's timestamp jumps the player to that moment.
 
+## Dashboard
+
+`/dashboard` is the home page after sign-in, served by `GET /api/dashboard`. Everything on it
+comes from work orders the user may see: their own, or all of them for a reviewer, the same rule
+as the list.
+
+- **Count cards:** Verified, Needs evidence, In review, Contradicted and Draft (not verified
+  yet). Archived work orders are not counted. A card opens the work order list filtered by that
+  status (`/work-orders?status=…`).
+- **Needs your action:** open evidence requests (what to upload, for which requirements) and
+  work orders waiting for a reviewer's decision.
+- **Recent activity:** the last 10 audit events across those work orders, with time and actor.
+  The actor is shown as You, Agent, System, Reviewer or Technician, never an email or id.
+- **System status:** chips read "Nemotron connected" (only after the live test passed),
+  "Supabase connected", or "Simulated · dev fixture" / "Local data · dev".
+- **Live updates:** with Supabase, a Realtime subscription to work orders, evidence requests and
+  audit events, removed on unmount. In local mode it polls every 5 seconds while the tab is
+  visible. The work order list updates the same way.
+
+## Design system
+
+- **Tokens:** `frontend/src/styles.css`, as Tailwind 4 theme tokens.
+  - Fixed: the NVIDIA-green accent `#76B900`, the type scale (`text-display`, `text-title`,
+    `text-heading`), radius (`rounded-control`, `rounded-card`), shadows (`shadow-card`,
+    `shadow-raised`, `shadow-glow`) and layout spacing (`w-sidebar`).
+  - Themeable, for light and dark: surfaces (`bg-canvas`, `bg-surface`, `bg-field`), lines, text
+    (`text-fg`, `text-fg-muted`, `text-fg-subtle`, `text-fg-faint`) and status colours
+    (`proven`, `not-proven`, `uncertain`, `contradicted`, `analyzing`, plus `review` and `dev`).
+    Fills match the 3D scenes; each colour also has a readable `-fg` text shade.
+- **Light and dark mode:** a toggle in the sidebar or top bar, remembered in `localStorage`
+  (wrapped in try/catch). Without a saved choice, the system preference applies; an inline script
+  in `index.html` sets it before first paint. The 3D stages carry `.theme-dark`, so they stay
+  dark in both modes.
+- **Shared components:** in `frontend/src/components/ui/`: Button (primary, secondary, ghost,
+  danger) and ButtonLink, Card, Badge, Input, Select, Textarea, FileInput and Field, Modal and
+  ConfirmDialog (native `<dialog>`: focus is trapped and Esc closes it), Toast, EmptyState,
+  ErrorState, Skeleton and PageHeader.
+- **Every page:** a loading skeleton, an empty state, and an error state with "Try again".
+  Every action shows a toast: created, uploaded, verification started or finished, submitted,
+  approved, rejected, archived, deleted, exported, or the error.
+- **Navigation:** a sidebar on desktop and a drawer on mobile (also a `<dialog>`), with the active
+  page highlighted. Pages fade in on navigation, without the movement under
+  `prefers-reduced-motion`. There is a "Skip to content" link, and every control shows a visible
+  focus ring.
+
 ## Managing work orders
 
-- **List** — search (title, location, description), filter by status or archived, sort by
+- **List** — search (title, location, description), filter by status or archived (kept in the
+  URL, so a link such as `/work-orders?status=CONTRADICTED` opens the filtered list), sort by
   newest, oldest or recently updated.
 - **Edit** — title, location and description. Every change is written to the audit trail with
   its old and new value.
@@ -247,7 +293,9 @@ backend/src/
 frontend/src/
   App.tsx               Routes
   api.ts · auth.tsx · hooks.ts · lib/supabase.ts
-  components/           Landing, WorkOrderList, WorkOrderForm, WorkOrderDetail, RequirementCard,
+  components/ui/        Shared UI kit (Button, Card, Badge, Input, Select, Modal, Toast, …)
+  components/           AppShell (sidebar, drawer), Dashboard, Landing, WorkOrderList,
+                        WorkOrderForm, WorkOrderDetail, RequirementCard,
                         EvidencePanel, EvidenceRequests, AuditTrail, VerificationOverview,
                         LoopVisual → LoopScene / GraphScene (3D), GraphView2D (2D), …
 supabase/schema.sql     Tables, RLS policies, Realtime publication, private storage bucket

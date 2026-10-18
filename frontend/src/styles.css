@@ -1,36 +1,161 @@
 @import 'tailwindcss';
 
+/*
+ * Design tokens. Fixed values live in @theme; colours that change between light and dark
+ * mode are @theme inline aliases of --el-* variables, so a utility like `text-fg` resolves
+ * wherever it is used: <html data-theme="light"> switches the palette, and `.theme-dark`
+ * pins a subtree (the 3D stages) to the dark palette in either mode.
+ */
 @theme {
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
+  /* Text on a coloured fill (status dots, accent buttons): dark in both modes. */
   --color-ink-950: #070a12;
-  --color-ink-900: #0c111d;
-  --color-ink-800: #121a2b;
-  --color-ink-700: #1a2438;
-  --color-line: #263249;
-  --color-accent: #5eead4;
-  --color-accent-ink: #04201c;
+  --color-nvidia: #76b900;
+
+  /* Type scale */
+  --text-display: 2.25rem;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.03em;
+  --text-title: 1.5rem;
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.02em;
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.4;
+
+  /* Radius and elevation */
+  --radius-control: 0.625rem;
+  --radius-card: 1rem;
+  --radius-panel: 1.25rem;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 24px -12px rgb(0 0 0 / 0.35);
+  --shadow-raised: 0 2px 4px rgb(0 0 0 / 0.1), 0 18px 48px -16px rgb(0 0 0 / 0.5);
+  --shadow-glow: 0 0 28px -8px rgb(118 185 0 / 0.7);
+
+  /* Layout */
+  --spacing-sidebar: 15rem;
+  --spacing-page: 1.25rem;
+}
+
+@theme inline {
+  --color-canvas: var(--el-canvas);
+  --color-surface: var(--el-surface);
+  --color-surface-2: var(--el-surface-2);
+  --color-surface-3: var(--el-surface-3);
+  --color-field: var(--el-field);
+  --color-line: var(--el-line);
+  --color-line-strong: var(--el-line-strong);
+  --color-fg: var(--el-fg);
+  --color-fg-muted: var(--el-fg-muted);
+  --color-fg-subtle: var(--el-fg-subtle);
+  --color-fg-faint: var(--el-fg-faint);
+  --color-accent: var(--el-accent);
+  --color-accent-fg: var(--el-accent-fg);
+  --color-accent-ink: #0a1200;
+
+  /* Status: fills match the 3D scenes (labels.ts hex); -fg is the readable text shade. */
+  --color-proven: var(--el-proven);
+  --color-proven-fg: var(--el-proven-fg);
+  --color-not-proven: var(--el-not-proven);
+  --color-not-proven-fg: var(--el-not-proven-fg);
+  --color-uncertain: var(--el-uncertain);
+  --color-uncertain-fg: var(--el-uncertain-fg);
+  --color-contradicted: var(--el-contradicted);
+  --color-contradicted-fg: var(--el-contradicted-fg);
+  --color-analyzing: var(--el-analyzing);
+  --color-analyzing-fg: var(--el-analyzing-fg);
+  --color-review: var(--el-review);
+  --color-review-fg: var(--el-review-fg);
+  --color-dev: var(--el-dev);
+  --color-dev-fg: var(--el-dev-fg);
 }
 
 @layer base {
-  :root {
+  :root,
+  .theme-dark {
     color-scheme: dark;
+    --el-canvas: #070a12;
+    --el-surface: #0c111d;
+    --el-surface-2: #121a2b;
+    --el-surface-3: #1a2438;
+    --el-field: #080c16;
+    --el-line: #243049;
+    --el-line-strong: #3a4a68;
+    --el-fg: #f1f5f9;
+    --el-fg-muted: #cbd5e1;
+    --el-fg-subtle: #94a3b8;
+    --el-fg-faint: #64748b;
+    --el-accent: #76b900;
+    --el-accent-fg: #a3e635;
+    --el-focus: #a3e635;
+    --el-proven: #34d399;
+    --el-proven-fg: #6ee7b7;
+    --el-not-proven: #7c8aa3;
+    --el-not-proven-fg: #cbd5e1;
+    --el-uncertain: #fbbf24;
+    --el-uncertain-fg: #fcd34d;
+    --el-contradicted: #fb7185;
+    --el-contradicted-fg: #fda4af;
+    --el-analyzing: #38bdf8;
+    --el-analyzing-fg: #7dd3fc;
+    --el-review: #a78bfa;
+    --el-review-fg: #c4b5fd;
+    --el-dev: #e879f9;
+    --el-dev-fg: #f5d0fe;
+    --el-backdrop:
+      radial-gradient(1100px 560px at 85% -10%, rgb(118 185 0 / 0.1), transparent 60%),
+      radial-gradient(800px 500px at -10% 110%, rgb(56 189 248 / 0.07), transparent 60%);
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+    --el-canvas: #f3f5f9;
+    --el-surface: #ffffff;
+    --el-surface-2: #f2f5f9;
+    --el-surface-3: #e6ebf2;
+    --el-field: #ffffff;
+    --el-line: #d8dfe9;
+    --el-line-strong: #b4c0d1;
+    --el-fg: #0b1220;
+    --el-fg-muted: #334155;
+    --el-fg-subtle: #526077;
+    --el-fg-faint: #6b788d;
+    --el-accent: #76b900;
+    --el-accent-fg: #3b6300;
+    --el-focus: #3b6300;
+    --el-proven: #10b981;
+    --el-proven-fg: #047857;
+    --el-not-proven: #7c8aa3;
+    --el-not-proven-fg: #475569;
+    --el-uncertain: #f59e0b;
+    --el-uncertain-fg: #92400e;
+    --el-contradicted: #f43f5e;
+    --el-contradicted-fg: #be123c;
+    --el-analyzing: #0ea5e9;
+    --el-analyzing-fg: #0369a1;
+    --el-review: #8b5cf6;
+    --el-review-fg: #6d28d9;
+    --el-dev: #d946ef;
+    --el-dev-fg: #a21caf;
+    --el-backdrop:
+      radial-gradient(1100px 560px at 85% -10%, rgb(118 185 0 / 0.08), transparent 60%),
+      radial-gradient(800px 500px at -10% 110%, rgb(56 189 248 / 0.06), transparent 60%);
+  }
+
+  .theme-dark {
+    color: var(--el-fg);
   }
 
   body {
     min-height: 100vh;
-    background:
-      radial-gradient(1100px 560px at 85% -10%, rgb(20 60 78 / 0.55), transparent 60%),
-      radial-gradient(800px 500px at -10% 110%, rgb(40 30 80 / 0.35), transparent 60%),
-      var(--color-ink-950);
+    background: var(--el-backdrop), var(--el-canvas);
     background-attachment: fixed;
-    color: var(--color-slate-200);
+    color: var(--el-fg-muted);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--el-focus);
     outline-offset: 2px;
   }
 
@@ -43,8 +168,9 @@
 @layer components {
   .card {
     border: 1px solid var(--color-line);
-    background: color-mix(in srgb, var(--color-ink-900) 86%, transparent);
-    border-radius: 1rem;
+    background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(8px);
   }
 
@@ -53,55 +179,80 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border-radius: 0.625rem;
+    border-radius: var(--radius-control);
     border: 1px solid var(--color-line);
-    background: var(--color-ink-700);
+    background: var(--color-surface-3);
     padding: 0.5rem 0.95rem;
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--color-slate-100);
+    color: var(--color-fg);
     transition:
       border-color 0.15s,
+      background-color 0.15s,
       filter 0.15s,
       opacity 0.15s;
   }
   .btn:hover:not(:disabled) {
-    border-color: var(--color-slate-500);
+    border-color: var(--color-line-strong);
   }
   .btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
+  .btn-sm {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8125rem;
+  }
+  .btn-icon {
+    padding: 0.4rem;
+  }
   .btn-primary {
     border-color: var(--color-accent);
     background: var(--color-accent);
     color: var(--color-accent-ink);
+    box-shadow: var(--shadow-glow);
   }
   .btn-primary:hover:not(:disabled) {
     border-color: var(--color-accent);
     filter: brightness(1.08);
   }
-
+  .btn-ghost {
+    border-color: transparent;
+    background: transparent;
+    color: var(--color-fg-muted);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--color-surface-2);
+    color: var(--color-fg);
+  }
   .btn-danger {
-    border-color: rgb(251 113 133 / 0.5);
-    background: rgb(251 113 133 / 0.12);
-    color: var(--color-rose-200);
+    border-color: color-mix(in srgb, var(--color-contradicted) 50%, transparent);
+    background: color-mix(in srgb, var(--color-contradicted) 12%, transparent);
+    color: var(--color-contradicted-fg);
   }
   .btn-danger:hover:not(:disabled) {
-    border-color: var(--color-rose-400);
+    border-color: var(--color-contradicted);
   }
 
   .input {
     width: 100%;
-    border-radius: 0.625rem;
+    border-radius: var(--radius-control);
     border: 1px solid var(--color-line);
-    background: var(--color-ink-950);
+    background: var(--color-field);
     padding: 0.55rem 0.8rem;
     font-size: 0.9rem;
-    color: var(--color-slate-100);
+    color: var(--color-fg);
+    transition: border-color 0.15s;
+  }
+  .input:hover:not(:disabled) {
+    border-color: var(--color-line-strong);
   }
   .input::placeholder {
-    color: var(--color-slate-600);
+    color: var(--color-fg-faint);
+  }
+  .input[aria-invalid='true'] {
+    border-color: var(--color-contradicted);
   }
 
   .eyebrow {
@@ -109,15 +260,41 @@
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--color-slate-400);
+    color: var(--color-fg-subtle);
+  }
+
+  .skeleton {
+    border-radius: 0.5rem;
+    background: linear-gradient(
+      90deg,
+      var(--color-surface-2) 0%,
+      var(--color-surface-3) 50%,
+      var(--color-surface-2) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton 1.4s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+    }
   }
 
   /* Hazard stripe used only for DEV ONLY / simulated surfaces. */
   .dev-stripe {
     background-image: repeating-linear-gradient(
       -45deg,
-      rgb(232 121 249 / 0.14) 0 10px,
+      color-mix(in srgb, var(--color-dev) 14%, transparent) 0 10px,
       transparent 10px 20px
     );
+  }
+}
+
+@keyframes skeleton {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }

@@ -28,7 +28,7 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
     <motion.li
       layout="position"
       id={`requirement-${requirement.id}`}
-      className={`card overflow-hidden transition-shadow duration-500 ${highlighted ? 'ring-2 ring-sky-400/80' : ''}`}
+      className={`card overflow-hidden transition-shadow duration-500 ${highlighted ? 'ring-2 ring-analyzing/80' : ''}`}
     >
       <button
         className="flex w-full items-start gap-3 p-4 text-left"
@@ -43,14 +43,14 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-semibold text-white">{requirement.title}</span>
+            <span className="font-semibold text-fg">{requirement.title}</span>
             {!requirement.mandatory && (
-              <span className="rounded border border-line px-1.5 text-[10px] font-semibold text-slate-400 uppercase">
+              <span className="rounded border border-line px-1.5 text-[10px] font-semibold text-fg-subtle uppercase">
                 Optional
               </span>
             )}
           </span>
-          <span className="mt-0.5 block text-sm text-slate-400">{requirement.description}</span>
+          <span className="mt-0.5 block text-sm text-fg-subtle">{requirement.description}</span>
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1.5">
           <AnimatePresence mode="wait" initial={false}>
@@ -64,7 +64,7 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
               <StatusBadge meta={meta} />
             </motion.span>
           </AnimatePresence>
-          <ChevronDown className={`size-4 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+          <ChevronDown className={`size-4 text-fg-faint transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
         </span>
       </button>
 
@@ -79,13 +79,13 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
           >
             <div className="space-y-4 border-t border-line px-4 py-4 text-sm">
               {!assessment ? (
-                <p className="text-slate-400">
+                <p className="text-fg-subtle">
                   {CANNOT_VERIFY} No verification run has assessed this requirement yet.
                 </p>
               ) : (
                 <>
                   {assessment.simulated && (
-                    <p className="dev-stripe rounded-lg border border-fuchsia-400/40 px-3 py-2 text-xs text-fuchsia-100">
+                    <p className="dev-stripe rounded-lg border border-dev/40 px-3 py-2 text-xs text-dev-fg">
                       <strong>DEV ONLY.</strong> This assessment was produced by the deterministic fixture. No AI model
                       examined the evidence.
                     </p>
@@ -93,14 +93,14 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
 
                   <Step icon={<Paperclip className="size-4" />} title="Evidence considered">
                     {cited.length === 0 ? (
-                      <p className="text-slate-400">No evidence was cited for this requirement.</p>
+                      <p className="text-fg-subtle">No evidence was cited for this requirement.</p>
                     ) : (
                       <ul className="flex flex-wrap gap-1.5">
                         {cited.map((id) => (
                           <li key={id}>
                             <button
                               type="button"
-                              className="rounded-md border border-line bg-ink-800 px-2 py-0.5 text-xs hover:border-slate-500"
+                              className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-xs hover:border-line-strong"
                               onClick={() => onOpenEvidence({ evidenceId: id })}
                               disabled={!evidenceById.has(id)}
                             >
@@ -114,7 +114,7 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
 
                   <Step icon={<Eye className="size-4" />} title="Observations">
                     {assessment.observations.length === 0 ? (
-                      <p className="text-slate-400">None.</p>
+                      <p className="text-fg-subtle">None.</p>
                     ) : (
                       <ul className="space-y-2">
                         {assessment.observations.map((observation, index) => (
@@ -122,8 +122,8 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
                             <span
                               className={`mt-0.5 h-fit shrink-0 rounded px-1.5 text-[10px] font-bold uppercase ${
                                 observation.kind === 'direct'
-                                  ? 'bg-emerald-400/15 text-emerald-300'
-                                  : 'bg-violet-400/15 text-violet-300'
+                                  ? 'bg-proven/15 text-proven-fg'
+                                  : 'bg-review/15 text-review-fg'
                               }`}
                               title={
                                 observation.kind === 'direct'
@@ -133,11 +133,11 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
                             >
                               {observation.kind}
                             </span>
-                            <span className="text-slate-300">
+                            <span className="text-fg-muted">
                               {observation.text}
                               <button
                                 type="button"
-                                className="ml-1 text-left text-xs text-slate-500 hover:text-slate-300 hover:underline"
+                                className="ml-1 text-left text-xs text-fg-faint hover:text-fg-muted hover:underline"
                                 onClick={() =>
                                   onOpenEvidence({ evidenceId: observation.evidenceId, atSec: observation.startSec })
                                 }
@@ -157,13 +157,13 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
                   </Step>
 
                   <Step icon={<Brain className="size-4" />} title="Reasoning">
-                    <p className="text-slate-300">{assessment.reasoning}</p>
+                    <p className="text-fg-muted">{assessment.reasoning}</p>
                   </Step>
 
                   <Step icon={<Gavel className="size-4" />} title="Decision">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                       <StatusBadge meta={REQUIREMENT_STATUS[assessment.status]} simulated={assessment.simulated} />
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-fg-subtle">
                         Confidence:{' '}
                         {assessment.confidence === null
                           ? 'not reported'
@@ -174,7 +174,7 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence, highlig
 
                   {assessment.policyNotes.length > 0 && (
                     <Step icon={<ShieldAlert className="size-4" />} title="Verification policy adjustments">
-                      <ul className="list-disc space-y-1 pl-4 text-amber-200/90">
+                      <ul className="list-disc space-y-1 pl-4 text-uncertain-fg/90">
                         {assessment.policyNotes.map((note, index) => (
                           <li key={index}>{note}</li>
                         ))}
@@ -197,7 +197,7 @@ const describe = (item: Evidence | undefined) =>
 function Step({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
     <section className="flex gap-3">
-      <span className="mt-0.5 text-slate-500" aria-hidden>
+      <span className="mt-0.5 text-fg-faint" aria-hidden>
         {icon}
       </span>
       <div className="min-w-0 flex-1">

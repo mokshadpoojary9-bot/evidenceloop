@@ -1,4 +1,5 @@
 import type { StatusMeta } from './labels';
+import { Badge } from './ui';
 
 interface Props {
   meta: StatusMeta;
@@ -11,14 +12,10 @@ export function StatusBadge({ meta, size = 'sm', simulated = false }: Props) {
   const Icon = meta.icon;
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
-      <span
-        className={`inline-flex items-center gap-1.5 rounded-full border font-semibold whitespace-nowrap ${meta.chip} ${
-          size === 'lg' ? 'px-3.5 py-1.5 text-sm' : 'px-2.5 py-0.5 text-xs'
-        }`}
-      >
+      <Badge tone={meta.tone} size={size}>
         <Icon className={`${size === 'lg' ? 'size-4' : 'size-3.5'} ${meta.spin ? 'animate-spin' : ''}`} aria-hidden />
         {meta.label}
-      </span>
+      </Badge>
       {simulated && <SimulatedTag />}
     </span>
   );
@@ -26,11 +23,12 @@ export function StatusBadge({ meta, size = 'sm', simulated = false }: Props) {
 
 export function SimulatedTag() {
   return (
-    <span
-      className="dev-stripe rounded-full border border-fuchsia-400/50 px-2 py-0.5 text-[10px] font-bold tracking-wider whitespace-nowrap text-fuchsia-200 uppercase"
+    <Badge
+      tone="dev"
+      className="px-2 text-[10px] font-bold tracking-wider uppercase"
       title="Produced by the DEV ONLY fixture. No AI model examined the evidence."
     >
       Simulated · dev fixture
-    </span>
+    </Badge>
   );
 }

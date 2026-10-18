@@ -12,6 +12,7 @@ import { LocalDb } from './stores/localDb.js';
 import { makePdf } from './test/fixtures.js';
 import {
   CANNOT_VERIFY,
+  type DashboardData,
   type EvidenceKind,
   type RequirementDraftResponse,
   type SystemStatus,
@@ -581,5 +582,34 @@ describe('roles and reviewer sign-off', () => {
       .field('kind', 'after_photo')
       .attach('file', Buffer.from('x'), { filename: 'a.jpg', contentType: 'image/jpeg' });
     expect(uploadAsReviewer.status).toBe(403);
+  });
+});
+
+describe('dashboard', () => {
+  const { api, create, upload, detail } = setup(new DevFixtureProvider(0));
+
+  it('counts work orders by status and lists open requests and recent activity', async () => {
+    const id = await create();
+    await create(); // a second one, still a draft
+    for (const kind of ['before_photo', 'after_photo', 'additional_photo', 'document'] as const) await upload(id, kind);
+    await api.post(`/api/work-orders/${id}/analyze`);
+    await detail(id);
+
+    const res = await api.get('/api/dashboard');
+    expect(res.status).toBe(200);
+    const body = res.body as DashboardData;
+    expect(body.counts).toEqual({ VERIFIED: 0, NEEDS_EVIDENCE: 1, IN_REVIEW: 0, CONTRADICTED: 0, AWAITING_EVIDENCE: 1 });
+    expect(body.openRequests.length).toBeGreaterThan(0);
+    expect(body.openRequests[0]).toMatchObject({ workOrderId: id, kind: 'video' });
+    expect(body.openRequests[0]!.requirementTitles.length).toBeGreaterThan(0);
+    expect(body.awaitingReview).toEqual([]);
+
+    expect(body.activity).toHaveLength(10);
+    const times = body.activity.map((event) => event.createdAt);
+    expect([...times].sort().reverse()).toEqual(times);
+    const actors = new Set(body.activity.map((event) => event.actor));
+    expect(actors.has('Agent')).toBe(true);
+    for (const actor of actors) expect(['You', 'Agent', 'System']).toContain(actor);
+    expect(JSON.stringify(body.activity)).not.toMatch(/user:|@/);
   });
 });

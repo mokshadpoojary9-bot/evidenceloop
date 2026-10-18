@@ -1,5 +1,6 @@
 import { Quote, Trash2 } from 'lucide-react';
 import { EVIDENCE_KINDS, EVIDENCE_KIND_LABELS, type EvidenceKind, type EvidenceNeed, type TemplateRequirement } from '../types';
+import { Button, Input, Textarea } from './ui';
 
 /** A requirement being edited before it is saved. */
 export interface DraftRequirement {
@@ -57,13 +58,12 @@ export function RequirementEditor({ index, value, onChange, onRemove, removable 
   };
 
   return (
-    <div className="rounded-xl border border-line bg-ink-800 p-3">
+    <div className="rounded-xl border border-line bg-surface-2 p-3">
       <div className="flex items-center gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-ink-700 text-xs font-bold">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-xs font-bold">
           {index + 1}
         </span>
-        <input
-          className="input"
+        <Input
           aria-label={`Requirement ${index + 1} title`}
           value={value.title}
           onChange={(event) => onChange({ title: event.target.value })}
@@ -71,7 +71,7 @@ export function RequirementEditor({ index, value, onChange, onRemove, removable 
           maxLength={200}
           required
         />
-        <label className="flex shrink-0 items-center gap-1.5 text-xs text-slate-300">
+        <label className="flex shrink-0 items-center gap-1.5 text-xs text-fg-muted">
           <input
             type="checkbox"
             className="accent-accent"
@@ -80,19 +80,19 @@ export function RequirementEditor({ index, value, onChange, onRemove, removable 
           />
           Mandatory
         </label>
-        <button
+        <Button
           type="button"
-          className="btn px-2 py-2"
+          className="px-2 py-2"
           aria-label={`Remove requirement ${index + 1}`}
           disabled={!removable}
           onClick={onRemove}
         >
           <Trash2 className="size-4" aria-hidden />
-        </button>
+        </Button>
       </div>
       <div className="mt-2 space-y-2 pl-8">
-        <textarea
-          className="input text-sm"
+        <Textarea
+          className="text-sm"
           rows={2}
           aria-label={`Requirement ${index + 1} description`}
           value={value.description}
@@ -101,15 +101,15 @@ export function RequirementEditor({ index, value, onChange, onRemove, removable 
           maxLength={2000}
         />
         {value.sourceQuote && (
-          <p className="flex gap-1.5 text-xs text-slate-400">
+          <p className="flex gap-1.5 text-xs text-fg-subtle">
             <Quote className="mt-0.5 size-3 shrink-0" aria-hidden />
             <span>
-              <span className="font-semibold text-slate-300">From the SOP:</span> “{value.sourceQuote}”
+              <span className="font-semibold text-fg-muted">From the SOP:</span> “{value.sourceQuote}”
             </span>
           </p>
         )}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-slate-400">Evidence that would prove it:</span>
+          <span className="text-xs text-fg-subtle">Evidence that would prove it:</span>
           {EVIDENCE_KINDS.map((kind) => {
             const selected = value.evidenceNeeds.some((need) => need.kind === kind);
             return (
@@ -119,7 +119,7 @@ export function RequirementEditor({ index, value, onChange, onRemove, removable 
                 aria-pressed={selected}
                 onClick={() => toggleNeed(kind)}
                 className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
-                  selected ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-slate-400 hover:text-slate-200'
+                  selected ? 'border-accent/60 bg-accent/15 text-accent-fg' : 'border-line text-fg-subtle hover:text-fg'
                 }`}
               >
                 {EVIDENCE_KIND_LABELS[kind]}

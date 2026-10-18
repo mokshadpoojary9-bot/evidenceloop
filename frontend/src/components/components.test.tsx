@@ -1,8 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { assessment, detail, NO_PERMISSIONS, review, system } from '../test/fixtures';
+import { assessment, detail, NO_PERMISSIONS, review, summary, system } from '../test/fixtures';
+import type { DashboardData } from '../types';
+import { ThemeToggle } from './AppShell';
+import { Dashboard } from './Dashboard';
 import { EvidenceViewer } from './EvidenceViewer';
 import { Landing } from './Landing';
 import { Login } from './Login';
@@ -11,11 +14,14 @@ import { ReviewPanel } from './ReviewPanel';
 import { StatusBadge } from './StatusBadge';
 import { AiBanner, AiPill } from './SystemStatus';
 import { VerificationOverview } from './VerificationOverview';
+import { WorkOrderList } from './WorkOrderList';
 
 const apiMock = vi.hoisted(() => ({
   submitForReview: vi.fn(),
   decideReview: vi.fn(),
   system: vi.fn(() => new Promise(() => {})),
+  dashboard: vi.fn(),
+  listWorkOrders: vi.fn(),
 }));
 vi.mock('../api', () => ({ api: apiMock, fileUrl: (url: string | null) => url }));
 const authMock = vi.hoisted(() => ({
@@ -27,6 +33,11 @@ const authMock = vi.hoisted(() => ({
   signOut: vi.fn(),
 }));
 vi.mock('../auth', () => ({ useAuth: () => authMock }));
+const viewerMock = vi.hoisted(() => ({
+  viewer: { id: 'tech', email: null, role: 'technician' as const, roleSource: 'demo' as const },
+  switchDemoRole: vi.fn(),
+}));
+vi.mock('../viewer', () => ({ useViewer: () => viewerMock }));
 
 beforeEach(() => {
   apiMock.submitForReview.mockReset().mockResolvedValue({});
@@ -201,7 +212,7 @@ describe('Landing hero', () => {
     );
     render(<MemoryRouter><Landing /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1, name: "Prove the work. Don't just trust the photo." })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Open dashboard/ }).getAttribute('href')).toBe('/work-orders');
+    expect(screen.getByRole('link', { name: /Open dashboard/ }).getAttribute('href')).toBe('/dashboard');
     // jsdom has no WebGL, so the SVG version of the same loop is shown, described for screen readers.
     expect(screen.getByRole('img', { name: /evidence loop.*Upload, Analyze, Map to requirement, Decide, Request more, Re-analyze/ })).toBeTruthy();
     expect(screen.getAllByRole('listitem', { current: 'step' })).toHaveLength(1);
@@ -242,5 +253,106 @@ describe('VerificationOverview', () => {
     expect(screen.queryByRole('group', { name: /Verification graph/ })).toBeNull();
     expect(screen.getByText('1 of 2 proven · 1 uncertain')).toBeTruthy();
     getContext.mockRestore();
+  });
+});
+
+describe('Dashboard', () => {
+  const data: DashboardData = {
+    counts: { VERIFIED: 2, NEEDS_EVIDENCE: 1, IN_REVIEW: 1, CONTRADICTED: 0, AWAITING_EVIDENCE: 3 },
+    openRequests: [
+      {
+        id: 'r1',
+        workOrderId: 'wo-1',
+        workOrderTitle: 'Replace emergency light in Room 204',
+        kind: 'video',
+        instruction: 'Upload a 5–10 second video showing the emergency light functional test.',
+        requirementTitles: ['Functional test completed'],
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    awaitingReview: [{ workOrderId: 'wo-2', title: 'Fix fire door closer', location: 'Stair B', submittedAt: new Date().toISOString() }],
+    activity: [
+      {
+        id: 'a1',
+        workOrderId: 'wo-1',
+        workOrderTitle: 'Replace emergency light in Room 204',
+        type: 'DECISION',
+        summary: 'Functional test completed: NOT_PROVEN',
+        actor: 'Agent',
+        createdAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+      },
+    ],
+  };
+
+  it('shows counts that link to the filtered list, what needs action, and recent activity', async () => {
+    apiMock.dashboard.mockResolvedValue(data);
+    render(<MemoryRouter><Dashboard /></MemoryRouter>);
+
+    const verified = await screen.findByRole('link', { name: '2 Verified: show these work orders' });
+    expect(verified.getAttribute('href')).toBe('/work-orders?status=VERIFIED');
+    expect(screen.getByRole('link', { name: '3 Draft: show these work orders' }).getAttribute('href')).toBe(
+      '/work-orders?status=AWAITING_EVIDENCE',
+    );
+    expect(screen.getByRole('link', { name: /New work order/ }).getAttribute('href')).toBe('/work-orders/new');
+
+    const action = screen.getByRole('region', { name: /Needs your action/ });
+    expect(within(action).getByText(/functional test\./)).toBeTruthy();
+    expect(within(action).getByText(/Waiting for a reviewer/)).toBeTruthy();
+
+    const activity = screen.getByRole('region', { name: /Recent activity/ });
+    const row = within(activity).getByText('Functional test completed: NOT_PROVEN').closest('a')!;
+    expect(row.textContent).toMatch(/5 minutes ago · Agent · Replace emergency light in Room 204/);
+    expect(row.getAttribute('href')).toBe('/work-orders/wo-1');
+  });
+
+  it('offers a retry when the dashboard cannot load', async () => {
+    apiMock.dashboard.mockRejectedValueOnce(new Error('API offline')).mockResolvedValueOnce(data);
+    const user = userEvent.setup();
+    render(<MemoryRouter><Dashboard /></MemoryRouter>);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not load the dashboard: API offline/);
+    await user.click(screen.getByRole('button', { name: /Try again/ }));
+    expect(await screen.findByRole('link', { name: '2 Verified: show these work orders' })).toBeTruthy();
+  });
+});
+
+describe('WorkOrderList', () => {
+  function LocationProbe() {
+    const location = useLocation();
+    return <output data-testid="location">{location.search}</output>;
+  }
+
+  it('filters by the status in the URL, and writes a new status back to the URL', async () => {
+    apiMock.listWorkOrders.mockResolvedValue([
+      summary({ id: 'a', title: 'Replace emergency light', status: 'VERIFIED' }),
+      summary({ id: 'b', title: 'Fix fire door closer', status: 'NEEDS_EVIDENCE' }),
+    ]);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/work-orders?status=VERIFIED']}>
+        <Routes>
+          <Route path="/work-orders" element={<><WorkOrderList /><LocationProbe /></>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Replace emergency light')).toBeTruthy();
+    expect(screen.queryByText('Fix fire door closer')).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText('Status'), 'NEEDS_EVIDENCE');
+    expect(screen.getByTestId('location').textContent).toBe('?status=NEEDS_EVIDENCE');
+    expect(screen.getByText('Fix fire door closer')).toBeTruthy();
+    expect(screen.queryByText('Replace emergency light')).toBeNull();
+  });
+});
+
+describe('ThemeToggle', () => {
+  it('switches between dark and light and remembers the choice', async () => {
+    document.documentElement.dataset.theme = 'dark';
+    const user = userEvent.setup();
+    render(<ThemeToggle />);
+    await user.click(screen.getByRole('button', { name: 'Switch to light mode' }));
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(localStorage.getItem('evidenceloop.theme')).toBe('light');
+    await user.click(screen.getByRole('button', { name: 'Switch to dark mode' }));
+    expect(document.documentElement.dataset.theme).toBe('dark');
   });
 });
