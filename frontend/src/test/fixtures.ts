@@ -106,6 +106,7 @@ export function detail(overrides: Partial<WorkOrderDetail> = {}): WorkOrderDetai
         uploadedBy: 'tech',
         createdAt: T,
         url: '/api/files/wo-1/ev-video/test.mp4',
+        pdf: null,
       },
     ],
     requests: [],

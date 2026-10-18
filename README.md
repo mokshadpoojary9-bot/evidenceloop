@@ -158,13 +158,40 @@ With the DEV fixture the list is simulated — step-like lines copied verbatim f
 keyword guess at the evidence — and is labelled as such. Scanned PDFs without a text layer are
 refused (422), and with no AI configured drafting is refused (503) rather than faked.
 
+## Work order page
+
+The main demo screen, top to bottom:
+
+- **Header:** status, "4 / 6 requirements proven" with one bar segment per requirement, when it
+  was last verified, Run verification and Export report. A provenance badge says
+  "Verified by NVIDIA Nemotron via Nebius" only for a run that used Nemotron; fixture runs say
+  "Simulated · dev fixture".
+- **Evidence requests** (amber): each request, the requirements it affects (click to jump), and
+  an upload button right there that answers that request.
+- **Requirement cards:** mandatory/optional, status, the model-reported confidence or
+  "Confidence not given", and the reasoning. Unproven cards say "I cannot verify this requirement
+  from the available evidence." and list what is missing. Expanding shows the chain
+  Requirement → Evidence → Observation (direct / inferred) → Reasoning → Decision; observations
+  link to their evidence, and video timestamps open the player at that moment.
+- **Evidence gallery:** thumbnails with kind, uploader, time and a short SHA-256; drag-and-drop
+  upload with a progress bar and retry. The type and size are checked before uploading too.
+- **Audit trail:** a timeline grouped by verification run, an icon per event, filter by type.
+
 ## Evidence viewer
 
 Click any evidence file, or any evidence cited in a requirement's observations, to open it in the
-viewer: images (fit / actual size), video and audio players, PDFs inline, and text files. Beside
-it are the file's metadata and full SHA-256, **what the AI can actually inspect** for that file
-type (and what it cannot — e.g. a video's soundtrack, a scanned PDF), and every observation that
-cites the file. Clicking a video observation's timestamp jumps the player to that moment.
+viewer: images with zoom and pan (buttons, wheel, drag, or +/−/0 and arrow keys), video with the
+citing observations marked on a timeline under the player (click a marker to jump), PDFs with
+page navigation, audio, and text files. Audio and PDFs without a text layer carry a
+**Not inspected** label: whether a PDF has a text layer is checked at upload and recorded in the
+upload's audit event. Beside the preview are the file's metadata and full SHA-256, **what the AI
+can actually inspect** for that file type, and every observation that cites the file.
+
+## Sign-in redirect
+
+A signed-out user is sent to `/login?next=<the full address, query string included>` and comes
+back there after signing in (also through the email-confirmation link). Only same-site relative
+paths are accepted (`frontend/src/lib/returnTo.ts`); anything else falls back to `/dashboard`.
 
 ## Dashboard
 

@@ -1,6 +1,8 @@
 import type { AuthUser } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
 import type {
+  AuditEvent,
+  PdfFacts,
   Requirement,
   Review,
   WorkOrder,
@@ -16,6 +18,14 @@ import type { FileStore } from './fileStore.js';
 // Access model (mirrored by Row Level Security in supabase/schema.sql):
 //   * technicians see and change only the work orders they created;
 //   * reviewers can read every work order and decide pending reviews, but change nothing else.
+
+/** The PDF check recorded with the upload's audit event. */
+function pdfFacts(audit: AuditEvent[], evidenceId: string): PdfFacts | null {
+  const event = audit.find((e) => e.type === 'EVIDENCE_UPLOADED' && e.data.evidenceId === evidenceId);
+  const pdf = event?.data.pdf as Partial<PdfFacts> | undefined;
+  if (!pdf || typeof pdf.textLayer !== 'boolean') return null;
+  return { pages: typeof pdf.pages === 'number' ? pdf.pages : null, textLayer: pdf.textLayer };
+}
 
 /** Rows written before a column existed (local store) get its default. */
 const normalize = (workOrder: WorkOrder): WorkOrder => ({ ...workOrder, archivedAt: workOrder.archivedAt ?? null });
@@ -147,7 +157,11 @@ export async function getWorkOrderDetail(
       assessment: assessmentById.get(requirement.currentAssessmentId ?? '') ?? null,
     })),
     evidence: await Promise.all(
-      evidence.map(async (item) => ({ ...item, url: await files.url(item.storagePath) })),
+      evidence.map(async (item) => ({
+        ...item,
+        url: await files.url(item.storagePath),
+        pdf: pdfFacts(audit, item.id),
+      })),
     ),
     requests: requests.map((request) => ({ ...request, requestedBy: request.requestedBy ?? 'agent' })),
     runs,

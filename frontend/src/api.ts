@@ -43,13 +43,23 @@ interface ErrorBody {
   issues?: { path: string; message: string }[];
 }
 
-async function send(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers);
-  if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
-
+/** The signed-in user's token, or the local demo role. */
+async function authHeaders(headers: Headers): Promise<Headers> {
   const session = supabase ? (await supabase.auth.getSession()).data.session : null;
   if (session) headers.set('Authorization', `Bearer ${session.access_token}`);
   else if (demoRole) headers.set('X-Demo-Role', demoRole);
+  return headers;
+}
+
+function apiError(status: number, body: ErrorBody): ApiError {
+  const detail = body.issues?.map((issue) => issue.message).join('; ');
+  return new ApiError(detail || body.error || `Request failed (${status})`, status, body.code);
+}
+
+async function send(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
+  await authHeaders(headers);
 
   let response: Response;
   try {
@@ -58,16 +68,33 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
     throw new ApiError('Cannot reach the EvidenceLoop API. Is the backend running?', 0);
   }
 
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as ErrorBody;
-    const detail = body.issues?.map((issue) => issue.message).join('; ');
-    throw new ApiError(
-      detail || body.error || `Request failed (${response.status})`,
-      response.status,
-      body.code,
-    );
-  }
+  if (!response.ok) throw apiError(response.status, (await response.json().catch(() => ({}))) as ErrorBody);
   return response;
+}
+
+/** A form upload that reports progress (fetch cannot), as a fraction 0–1. */
+async function upload<T>(path: string, form: FormData, onProgress?: (fraction: number) => void): Promise<T> {
+  const headers = await authHeaders(new Headers());
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE_URL}${path}`);
+    headers.forEach((value, key) => xhr.setRequestHeader(key, value));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded / event.total);
+    };
+    xhr.onerror = () => reject(new ApiError('Cannot reach the EvidenceLoop API. Is the backend running?', 0));
+    xhr.onload = () => {
+      let body: unknown = {};
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        // not JSON: handled as an error body below
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body as T);
+      else reject(apiError(xhr.status, body as ErrorBody));
+    };
+    xhr.send(form);
+  });
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -130,15 +157,13 @@ export const api = {
   uploadEvidence: (
     id: string,
     input: { file: File; kind: EvidenceKind; note: string; requestId: string | null },
+    onProgress?: (fraction: number) => void,
   ) => {
     const form = new FormData();
     form.set('kind', input.kind);
     form.set('note', input.note);
     if (input.requestId) form.set('requestId', input.requestId);
     form.set('file', input.file);
-    return request<UploadEvidenceResponse>(`/api/work-orders/${id}/evidence`, {
-      method: 'POST',
-      body: form,
-    });
+    return upload<UploadEvidenceResponse>(`/api/work-orders/${id}/evidence`, form, onProgress);
   },
 };

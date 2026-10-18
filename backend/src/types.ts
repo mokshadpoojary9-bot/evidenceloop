@@ -325,10 +325,17 @@ export interface DashboardData {
   }[];
 }
 
+/** What the upload-time check found in a PDF. Without a text layer (a scan) the AI cannot read it. */
+export interface PdfFacts {
+  pages: number | null;
+  textLayer: boolean;
+}
+
 export interface WorkOrderDetail {
   workOrder: WorkOrder;
   requirements: (Requirement & { assessment: Assessment | null })[];
-  evidence: (Evidence & { url: string | null })[];
+  /** `pdf` is null for other files, and for PDFs uploaded before the check existed. */
+  evidence: (Evidence & { url: string | null; pdf: PdfFacts | null })[];
   requests: EvidenceRequest[];
   runs: AnalysisRun[];
   audit: AuditEvent[];

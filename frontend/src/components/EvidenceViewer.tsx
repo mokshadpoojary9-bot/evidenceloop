@@ -1,8 +1,9 @@
-import { ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Eye, EyeOff, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { fileUrl } from '../api';
 import { describeInspection } from '../lib/inspection';
 import { EVIDENCE_KIND_LABELS, type AiMode, type Observation, type WorkOrderDetail } from '../types';
+import { NotInspectedLabel, PdfPreview, VideoWithMarkers, ZoomableImage } from './EvidenceMedia';
 import { Button, Modal } from './ui';
 import { formatBytes, formatDate, formatSeconds, REQUIREMENT_STATUS } from './labels';
 import { StatusBadge } from './StatusBadge';
@@ -67,6 +68,12 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
   const media = useRef<HTMLVideoElement & HTMLAudioElement>(null);
   const inspection = describeInspection(item, aiMode);
   const [copied, setCopied] = useState(false);
+  // Shown over the preview itself: the AI never reads these, whatever the provider.
+  const notInspected = item.mimeType.startsWith('audio/')
+    ? 'audio is not transcribed, so the AI cannot hear this recording.'
+    : item.pdf?.textLayer === false
+      ? 'this PDF has no text layer (likely a scan) and OCR is not available, so the AI cannot read it.'
+      : null;
 
   const seek = (seconds: number) => {
     if (!media.current) return;
@@ -88,17 +95,29 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-2">
-        <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-xl border border-line bg-field">
+        <div className="flex min-h-64 flex-col items-center justify-center overflow-hidden rounded-xl border border-line bg-field">
+          {notInspected && <NotInspectedLabel reason={notInspected} />}
           {!url ? (
             <p className="p-6 text-sm text-fg-subtle">This file cannot be displayed (no URL available).</p>
           ) : item.mimeType.startsWith('image/') ? (
             <ZoomableImage src={url} alt={`${EVIDENCE_KIND_LABELS[item.kind]}: ${item.fileName}`} />
           ) : item.mimeType.startsWith('video/') ? (
-            <video ref={media} src={url} controls preload="metadata" className="max-h-[65vh] w-full" />
+            <VideoWithMarkers
+              src={url}
+              videoRef={media}
+              markers={observations
+                .filter(({ observation }) => observation.startSec !== null)
+                .map(({ observation, requirement }) => ({
+                  startSec: observation.startSec!,
+                  endSec: observation.endSec,
+                  label: `#${requirement.position} ${requirement.title}: ${observation.text}`,
+                  color: REQUIREMENT_STATUS[requirement.status].hex,
+                }))}
+            />
           ) : item.mimeType.startsWith('audio/') ? (
             <audio ref={media} src={url} controls preload="metadata" className="w-full p-6" />
           ) : item.mimeType === 'application/pdf' ? (
-            <iframe src={url} title={item.fileName} className="h-[65vh] w-full bg-white" />
+            <PdfPreview src={url} title={item.fileName} pages={item.pdf?.pages ?? null} />
           ) : item.mimeType.startsWith('text/') ? (
             <TextPreview url={url} />
           ) : (
@@ -223,27 +242,6 @@ function ViewerBody({ item, atSec, aiMode, observations, request, position, onSt
           )}
         </section>
       </aside>
-    </div>
-  );
-}
-
-function ZoomableImage({ src, alt }: { src: string; alt: string }) {
-  const [zoomed, setZoomed] = useState(false);
-  return (
-    <div className={`relative w-full ${zoomed ? 'max-h-[65vh] overflow-auto' : ''}`}>
-      <img
-        src={src}
-        alt={alt}
-        className={zoomed ? 'max-w-none' : 'mx-auto max-h-[65vh] w-auto object-contain'}
-      />
-      <Button
-        size="sm"
-        className="absolute top-2 right-2"
-        onClick={() => setZoomed((value) => !value)}
-        aria-label={zoomed ? 'Fit to view' : 'Actual size'}
-      >
-        {zoomed ? <ZoomOut className="size-3.5" aria-hidden /> : <ZoomIn className="size-3.5" aria-hidden />}
-      </Button>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { currentUser } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
 import type { Db } from '../stores/db.js';
 import type { FileStore } from '../stores/fileStore.js';
+import { extractPdfText } from '../media/pdfText.js';
 import { renderWorkOrderReport } from '../reports/workOrderReport.js';
 import {
   getAccessibleWorkOrder,
@@ -382,6 +383,9 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
       createdAt: now(),
     };
 
+    // A PDF without a text layer (a scan) is attached but the AI cannot read it; record that up front.
+    const pdf = evidence.mimeType === 'application/pdf' ? await extractPdfText(file.buffer, 1) : null;
+
     await files.put(evidence.storagePath, file.buffer, file.mimetype);
     await db.insert('evidence', evidence);
     await audit(db, {
@@ -396,6 +400,7 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
         sizeBytes: evidence.sizeBytes,
         sha256: evidence.sha256,
         requestId: evidence.requestId,
+        ...(pdf ? { pdf: { pages: pdf.pages, textLayer: pdf.ok } } : {}),
       },
     });
 

@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
+import { loginPath } from './lib/returnTo';
 import { supabase } from './lib/supabase';
 
 interface AuthState {
@@ -53,12 +54,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return error ? authMessage(error.message) : null;
       },
       signUp: async (email, password) => {
-        // The confirmation link returns here; this origin must be listed under
+        // The confirmation link returns here (keeping ?next=); this origin must be listed under
         // Supabase → Authentication → URL Configuration → Redirect URLs.
         const { data, error } = await supabase!.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/login` },
+          options: { emailRedirectTo: `${window.location.origin}/login${window.location.search}` },
         });
         if (error) return { error: authMessage(error.message) };
         return { error: null, confirmEmail: data.session === null };
@@ -79,12 +80,12 @@ export function useAuth(): AuthState {
   return value;
 }
 
-/** Sends signed-out users to /login. A no-op when auth is not configured. */
+/** Sends signed-out users to /login, remembering the full address. A no-op when auth is not configured. */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { enabled, loading, session } = useAuth();
   const location = useLocation();
   if (!enabled) return children;
   if (loading) return <p role="status" className="p-10 text-center text-fg-subtle">Loading…</p>;
-  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!session) return <Navigate to={loginPath(location)} replace />;
   return children;
 }

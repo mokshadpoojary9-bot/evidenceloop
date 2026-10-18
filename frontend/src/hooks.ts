@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
+import { useToast } from './components/ui';
 import { supabase } from './lib/supabase';
-import type { SystemStatus, WorkOrderDetail } from './types';
+import type { EvidenceKind, ReanalysisOutcome, SystemStatus, WorkOrderDetail } from './types';
 
 let systemPromise: Promise<SystemStatus> | null = null;
 const SYSTEM_RECHECK_MS = 3000;
@@ -171,4 +172,62 @@ export function useLiveRefresh(refresh: () => void, channelName: string, tables:
     channel.subscribe();
     return () => void client.removeChannel(channel);
   }, [channelName, tables]);
+}
+
+export interface UploadInput {
+  file: File;
+  kind: EvidenceKind;
+  note: string;
+  requestId: string | null;
+}
+
+export type UploadState =
+  | { phase: 'idle' }
+  | { phase: 'uploading'; fileName: string; progress: number }
+  | { phase: 'failed'; fileName: string; error: string }
+  | { phase: 'done'; fileName: string; message: string };
+
+const OUTCOME_MESSAGE: Record<ReanalysisOutcome, string> = {
+  started: 'Re-analysing the affected requirements…',
+  queued: 'It will be included in a re-analysis as soon as the current run finishes.',
+  skipped_no_prior_run: 'Run verification when your evidence is complete.',
+  skipped_ai_not_configured: 'It was not analysed: production AI is not configured.',
+};
+
+/**
+ * One evidence upload with progress, a toast for the outcome, and a retry of the same
+ * file after a failure. `onUploaded` runs after a successful upload.
+ */
+export function useEvidenceUpload(workOrderId: string, onUploaded: () => void) {
+  const [state, setState] = useState<UploadState>({ phase: 'idle' });
+  const last = useRef<UploadInput | null>(null);
+  const toast = useToast();
+
+  const start = useCallback(
+    async (input: UploadInput) => {
+      last.current = input;
+      const fileName = input.file.name;
+      setState({ phase: 'uploading', fileName, progress: 0 });
+      try {
+        const result = await api.uploadEvidence(workOrderId, input, (progress) =>
+          setState({ phase: 'uploading', fileName, progress }),
+        );
+        const message = OUTCOME_MESSAGE[result.reanalysis];
+        setState({ phase: 'done', fileName, message });
+        toast.success(`Uploaded ${fileName}. ${message}`);
+        onUploaded();
+        return true;
+      } catch (err) {
+        const error = err instanceof Error ? err.message : 'Upload failed';
+        setState({ phase: 'failed', fileName, error });
+        toast.error(`Upload of ${fileName} failed: ${error}`);
+        return false;
+      }
+    },
+    [workOrderId, onUploaded, toast],
+  );
+
+  const retry = useCallback(() => (last.current ? start(last.current) : Promise.resolve(false)), [start]);
+  const reset = useCallback(() => setState({ phase: 'idle' }), []);
+  return { state, start, retry, reset };
 }

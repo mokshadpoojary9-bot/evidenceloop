@@ -2,6 +2,7 @@ import { LoaderCircle, MailCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from '../auth';
+import { NEXT_PARAM, safeReturnPath } from '../lib/returnTo';
 import { Button, Input } from './ui';
 
 export function Login() {
@@ -15,7 +16,7 @@ export function Login() {
   /** Set after a sign-up that still needs the emailed confirmation link. */
   const [awaitingConfirmation, setAwaitingConfirmation] = useState<string | null>(null);
 
-  const destination = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+  const destination = safeReturnPath(new URLSearchParams(location.search).get(NEXT_PARAM));
   if (!auth.enabled || auth.session) return <Navigate to={destination} replace />;
 
   const handleSubmit = async (event: FormEvent) => {

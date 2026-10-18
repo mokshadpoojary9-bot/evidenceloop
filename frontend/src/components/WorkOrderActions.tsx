@@ -68,7 +68,7 @@ export function WorkOrderActions({ workOrder, canManage, onChanged }: Props) {
     <div className="flex flex-wrap gap-1.5 sm:justify-end">
       <Button size="sm" onClick={() => void exportReport()} disabled={exporting}>
         {exporting ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <FileDown className="size-3.5" aria-hidden />}
-        Export PDF
+        Export report
       </Button>
       {canManage && (
         <>

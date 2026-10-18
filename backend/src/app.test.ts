@@ -183,6 +183,17 @@ describe('demo scenario: replace emergency light in Room 204 (DEV fixture provid
     expect(res.body.toString()).toBe('fake after_photo bytes');
   });
 
+  it('records whether an uploaded PDF has a text layer the AI can read', async () => {
+    const id = await create();
+    const attach = (pdf: Buffer, filename: string) =>
+      api.post(`/api/work-orders/${id}/evidence`).field('kind', 'document').attach('file', pdf, { filename, contentType: 'application/pdf' });
+    expect((await attach(makePdf(['Install model EL-200.', 'Test for 30 s.']), 'manual.pdf')).status).toBe(201);
+    expect((await attach(makePdf(['']), 'scan.pdf')).status).toBe(201);
+    await upload(id, 'after_photo');
+    const d = await detail(id);
+    expect(d.evidence.map((e) => e.pdf)).toEqual([{ pages: 2, textLayer: true }, { pages: 1, textLayer: false }, null]);
+  });
+
   it('rejects a file whose type does not match the evidence kind', async () => {
     const id = await create();
     const res = await api
