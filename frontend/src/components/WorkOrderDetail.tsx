@@ -1,5 +1,5 @@
 import { Archive, ArrowLeft, LoaderCircle, MapPin, Play, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { api } from '../api';
 import { useSystem, useWorkOrder } from '../hooks';
@@ -9,12 +9,12 @@ import { EvidencePanel } from './EvidencePanel';
 import { EvidenceViewer, type ViewTarget } from './EvidenceViewer';
 import { EvidenceRequests } from './EvidenceRequests';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS, formatDate } from './labels';
-import { LoopVisual } from './LoopVisual';
 import { RequirementCard } from './RequirementCard';
 import { ReviewPanel } from './ReviewPanel';
 import { SopRequirementsSection } from './SopRequirementsSection';
 import { StatusBadge } from './StatusBadge';
 import { AiBanner } from './SystemStatus';
+import { VerificationOverview } from './VerificationOverview';
 import { WorkOrderActions } from './WorkOrderActions';
 
 export function WorkOrderDetail() {
@@ -25,6 +25,24 @@ export function WorkOrderDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [viewing, setViewing] = useState<ViewTarget | null>(null);
+  const [highlight, setHighlight] = useState<{ id: string; at: number } | null>(null);
+
+  useEffect(() => {
+    if (!highlight) return;
+    const timer = setTimeout(() => setHighlight(null), 2400);
+    return () => clearTimeout(timer);
+  }, [highlight]);
+
+  /** From the graph: bring the requirement's card into view, highlight it and focus it. */
+  const selectRequirement = useCallback((requirementId: string) => {
+    const card = document.getElementById(`requirement-${requirementId}`);
+    if (!card) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    card.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    card.querySelector('button')?.focus({ preventScroll: true });
+    setHighlight({ id: requirementId, at: Date.now() });
+  }, []);
+  const openEvidence = useCallback((evidenceId: string) => setViewing({ evidenceId }), []);
 
   if (error && !detail) {
     return (
@@ -122,6 +140,13 @@ export function WorkOrderDetail() {
         </div>
       </header>
 
+      <VerificationOverview
+        detail={detail}
+        coreHex={hasRun || analyzing ? meta.hex : REQUIREMENT_STATUS.NOT_PROVEN.hex}
+        onSelectRequirement={selectRequirement}
+        onOpenEvidence={openEvidence}
+      />
+
       {lastRun?.status === 'FAILED' && (
         <p role="alert" className="rounded-xl border border-rose-400/40 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
           The last verification run failed and changed nothing: {lastRun.error}
@@ -154,6 +179,7 @@ export function WorkOrderDetail() {
                   requirement={requirement}
                   evidence={evidence}
                   onOpenEvidence={setViewing}
+                  highlighted={highlight?.id === requirement.id}
                 />
               ))}
             </ul>
@@ -165,18 +191,6 @@ export function WorkOrderDetail() {
         </div>
 
         <aside className="space-y-5">
-          <section className="card overflow-hidden" aria-label="Verification loop">
-            <LoopVisual
-              variant="status"
-              className="relative h-56"
-              statuses={requirements.map((r) => r.status)}
-              coreHex={hasRun || analyzing ? meta.hex : REQUIREMENT_STATUS.NOT_PROVEN.hex}
-            />
-            <p className="border-t border-line px-4 py-2 text-center text-xs text-slate-400">
-              One node per requirement. The core shows the overall state.
-            </p>
-          </section>
-
           <EvidencePanel
             workOrderId={workOrder.id}
             evidence={evidence}

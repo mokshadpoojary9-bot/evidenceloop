@@ -1,14 +1,21 @@
-import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { type HeroMotion, STATIONS } from '../lib/evidenceLoop';
-import type { RequirementStatus } from '../types';
-import { REQUIREMENT_STATUS } from './labels';
+import { describeGraph, type VerificationGraph } from '../lib/verificationGraph';
+import type { GraphHover } from './GraphScene';
+import { GraphTooltip, GraphView2D } from './GraphView2D';
 
 // The 3D code (three, R3F, drei, postprocessing) is a separate chunk, fetched only
 // where it will actually be shown.
 const LoopScene = lazy(() => import('./LoopScene'));
 
 type Props = { className?: string } & (
-  | { variant: 'status'; statuses: RequirementStatus[]; coreHex: string }
+  | {
+      variant: 'graph';
+      graph: VerificationGraph;
+      coreHex: string;
+      onSelectRequirement: (id: string) => void;
+      onOpenEvidence: (id: string) => void;
+    }
   | { variant: 'hero'; motion: RefObject<HeroMotion>; activeStation: number }
 );
 
@@ -35,28 +42,28 @@ export function LoopVisual(props: Props) {
   const [lost, setLost] = useState(false);
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const active = useOnScreen(container);
+  const [hover, setHover] = useState<{ at: GraphHover; width: number } | null>(null);
+  const onHover = (at: GraphHover | null) => setHover(at && { at, width: container.current?.clientWidth ?? 0 });
 
-  const statusLabel =
-    props.variant === 'status'
-      ? `Verification loop: ${props.statuses.map((s, i) => `requirement ${i + 1} ${REQUIREMENT_STATUS[s].label}`).join(', ')}`
-      : HERO_LABEL;
-  const statuses = props.variant === 'status' ? props.statuses : null;
-  const nodes = useMemo(
-    () => (statuses ?? []).map((status) => ({ hex: REQUIREMENT_STATUS[status].hex, pulsing: status === 'ANALYZING' })),
-    [statuses],
-  );
-
+  const label = props.variant === 'graph' ? describeGraph(props.graph) : HERO_LABEL;
   const flat =
     props.variant === 'hero' ? (
       <HeroLoop2D activeStation={props.activeStation} />
     ) : (
-      <FlatLoop statuses={props.statuses} label={statusLabel} />
+      <GraphView2D
+        graph={props.graph}
+        label={label}
+        animate={!reducedMotion}
+        onHover={onHover}
+        onSelectRequirement={props.onSelectRequirement}
+        onOpenEvidence={props.onOpenEvidence}
+      />
     );
   const show3D = capable && !lost;
   const common = {
     animate: !reducedMotion,
     active,
-    label: statusLabel,
+    label,
     onFallback: (reason: 'context-lost' | 'too-slow') => {
       if (reason === 'too-slow') tooSlowFor3D = true;
       setLost(true);
@@ -67,7 +74,7 @@ export function LoopVisual(props: Props) {
     <div ref={container} className={className}>
       {show3D ? (
         <SceneBoundary fallback={flat}>
-          {/* While the 3D chunk loads, the hero shows its static gradient; a work order shows the flat loop. */}
+          {/* While the 3D chunk loads, the hero shows its static gradient; a work order shows the 2D graph. */}
           <Suspense fallback={props.variant === 'hero' ? null : flat}>
             {props.variant === 'hero' ? (
               <LoopScene
@@ -78,7 +85,15 @@ export function LoopVisual(props: Props) {
                 labels={labels}
               />
             ) : (
-              <LoopScene {...common} variant="status" nodes={nodes} coreHex={props.coreHex} />
+              <LoopScene
+                {...common}
+                variant="graph"
+                graph={props.graph}
+                coreHex={props.coreHex}
+                onHover={onHover}
+                onSelectRequirement={props.onSelectRequirement}
+                onOpenEvidence={props.onOpenEvidence}
+              />
             )}
           </Suspense>
         </SceneBoundary>
@@ -106,6 +121,8 @@ export function LoopVisual(props: Props) {
           ))}
         </div>
       )}
+
+      {props.variant === 'graph' && hover && <GraphTooltip graph={props.graph} hover={hover.at} width={hover.width} />}
     </div>
   );
 }
@@ -220,22 +237,6 @@ function HeroLoop2D({ activeStation }: { activeStation: number }) {
         );
       })}
     </svg>
-  );
-}
-
-function FlatLoop({ statuses, label }: { statuses: RequirementStatus[]; label: string }) {
-  return (
-    <div className="flex h-full items-center justify-center gap-2" role="img" aria-label={label}>
-      {statuses.map((status, index) => (
-        <span
-          key={index}
-          className="flex size-7 items-center justify-center rounded-full text-xs font-bold text-ink-950"
-          style={{ backgroundColor: REQUIREMENT_STATUS[status].hex }}
-        >
-          {index + 1}
-        </span>
-      ))}
-    </div>
   );
 }
 

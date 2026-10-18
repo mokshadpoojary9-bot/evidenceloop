@@ -10,6 +10,7 @@ import { REQUIREMENT_STATUS, WORK_ORDER_STATUS } from './labels';
 import { ReviewPanel } from './ReviewPanel';
 import { StatusBadge } from './StatusBadge';
 import { AiBanner, AiPill } from './SystemStatus';
+import { VerificationOverview } from './VerificationOverview';
 
 const apiMock = vi.hoisted(() => ({
   submitForReview: vi.fn(),
@@ -206,5 +207,40 @@ describe('Landing hero', () => {
     expect(screen.getAllByRole('listitem', { current: 'step' })).toHaveLength(1);
     expect(screen.getByText(/arrive as evidence/)).toBeTruthy();
     vi.unstubAllGlobals();
+  });
+});
+
+describe('VerificationOverview', () => {
+  it('draws the 2D graph when WebGL is unavailable, with working nodes and a summary', async () => {
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const user = userEvent.setup();
+    const onSelectRequirement = vi.fn();
+    const onOpenEvidence = vi.fn();
+    const base = detail();
+    const data = detail({
+      requirements: [
+        { ...base.requirements[0]!, assessment: assessment({ observations: [{ evidenceId: 'ev-video', kind: 'direct', text: 'Lamp lights', startSec: 2, endSec: 4 }] }) },
+        { ...base.requirements[0]!, id: 'req-2', position: 2, title: 'Securely mounted', status: 'UNCERTAIN', assessment: null },
+      ],
+      requests: [
+        { id: 'r1', workOrderId: 'wo-1', runId: null, requestedBy: 'agent', requirementIds: ['req-2'], kind: 'after_photo', instruction: 'Photo of the bracket', status: 'OPEN', fulfilledByEvidenceId: null, createdAt: '', updatedAt: '' },
+      ],
+    });
+    render(<VerificationOverview detail={data} coreHex="#fbbf24" onSelectRequirement={onSelectRequirement} onOpenEvidence={onOpenEvidence} />);
+
+    expect(screen.getByText('1 of 2 proven · 1 uncertain')).toBeTruthy();
+    expect(document.querySelector('canvas')).toBeNull();
+    const graph = screen.getByRole('group', { name: /Verification graph: 1 of 2 proven/ });
+    expect(graph.querySelectorAll('line')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: /Requirement 2, Securely mounted: Uncertain, evidence requested/ }));
+    expect(onSelectRequirement).toHaveBeenCalledWith('req-2');
+    await user.click(screen.getByRole('button', { name: 'Open Video: test.mp4' }));
+    expect(onOpenEvidence).toHaveBeenCalledWith('ev-video');
+
+    await user.click(screen.getByRole('button', { name: 'Hide graph' }));
+    expect(screen.queryByRole('group', { name: /Verification graph/ })).toBeNull();
+    expect(screen.getByText('1 of 2 proven · 1 uncertain')).toBeTruthy();
+    getContext.mockRestore();
   });
 });

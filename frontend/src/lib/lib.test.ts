@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { summary } from '../test/fixtures';
+import { assessment, detail, summary } from '../test/fixtures';
 import { CARD_COUNT, cardAt, cardFrame, easeStations, STATION_COUNT, stationAt } from './evidenceLoop';
 import { FrameGovernor, type GovernorVerdict } from './frameGovernor';
 import { describeInspection } from './inspection';
+import { buildGraph, ringLayout, summarize } from './verificationGraph';
 import { DEFAULT_QUERY, queryWorkOrders } from './workOrderQuery';
 
 describe('queryWorkOrders', () => {
@@ -145,5 +146,74 @@ describe('FrameGovernor', () => {
     expect(governor.tick(4)).toBeNull();
     expect(run(governor, 60, 3)).toEqual([]);
     expect(governor.quality).toBe(0);
+  });
+});
+
+describe('verification graph (work order 3D view)', () => {
+  const observation = (evidenceId: string, kind: 'direct' | 'inferred') => ({
+    evidenceId,
+    kind,
+    text: 'seen',
+    startSec: null,
+    endSec: null,
+  });
+
+  it('links evidence to requirements from observations, direct winning over inferred', () => {
+    const base = detail();
+    const requirement = base.requirements[0]!;
+    const photo = { ...base.evidence[0]!, id: 'ev-photo', kind: 'after_photo' as const, fileName: 'after.jpg' };
+    const graph = buildGraph({
+      ...base,
+      evidence: [...base.evidence, photo],
+      requirements: [
+        {
+          ...requirement,
+          assessment: assessment({
+            observations: [observation('ev-video', 'inferred'), observation('ev-video', 'direct'), observation('ev-photo', 'inferred'), observation('ev-gone', 'direct')],
+          }),
+        },
+      ],
+    });
+    expect(graph.links).toEqual([
+      { evidenceId: 'ev-video', requirementId: 'req-1', direct: true },
+      { evidenceId: 'ev-photo', requirementId: 'req-1', direct: false },
+    ]);
+    expect(graph.evidence.map((e) => e.icon)).toEqual(['video', 'photo']);
+  });
+
+  it('marks requirements under an open request, and those a running run is re-checking', () => {
+    const base = detail();
+    const graph = buildGraph({
+      ...base,
+      requests: [
+        { id: 'r1', workOrderId: 'wo-1', runId: null, requestedBy: 'agent', requirementIds: ['req-1'], kind: 'video', instruction: 'x', status: 'OPEN', fulfilledByEvidenceId: null, createdAt: '', updatedAt: '' },
+      ],
+      runs: [
+        { id: 'run-2', workOrderId: 'wo-1', trigger: 'new_evidence', triggerEvidenceId: null, requirementIds: ['req-1'], provider: 'dev-fixture', model: null, simulated: true, status: 'RUNNING', error: null, startedAt: '', completedAt: null },
+      ],
+    });
+    expect(graph.requirements[0]).toMatchObject({ requested: true, pulsing: true });
+  });
+
+  it('summarizes statuses the way the page shows them', () => {
+    expect(summarize(['PROVEN', 'PROVEN', 'PROVEN', 'PROVEN', 'UNCERTAIN', 'NOT_PROVEN'])).toBe(
+      '4 of 6 proven · 1 uncertain · 1 not proven',
+    );
+    expect(summarize(['ANALYZING', 'CONTRADICTED'])).toBe('0 of 2 proven · 1 analyzing · 1 contradicted');
+    expect(summarize([])).toBe('No requirements yet');
+  });
+
+  it('spaces 1 to 30 nodes on a ring without any overlap', () => {
+    for (let count = 1; count <= 30; count++) {
+      const { size, angle } = ringLayout(count, 2.4, 0.2);
+      expect(size).toBeGreaterThan(0.1);
+      const points = Array.from({ length: count }, (_, i) => [Math.sin(angle(i)) * 2.4, Math.cos(angle(i)) * 2.4] as const);
+      for (let i = 0; i < count; i++) {
+        for (let j = i + 1; j < count; j++) {
+          const distance = Math.hypot(points[i]![0] - points[j]![0], points[i]![1] - points[j]![1]);
+          expect(distance).toBeGreaterThan(size * 2.5);
+        }
+      }
+    }
   });
 });

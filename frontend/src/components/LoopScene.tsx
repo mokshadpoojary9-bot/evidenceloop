@@ -1,11 +1,10 @@
-import { Environment, Float, Lightformer, OrbitControls } from '@react-three/drei';
+import { Environment, Float, Lightformer } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   AdditiveBlending,
   BackSide,
-  CanvasTexture,
   Color,
   getConsoleFunction,
   type Group,
@@ -13,7 +12,6 @@ import {
   MathUtils,
   Matrix4,
   type Mesh,
-  type MeshStandardMaterial,
   Object3D,
   setConsoleFunction,
   Vector3,
@@ -28,16 +26,14 @@ import {
   STATION_COUNT,
 } from '../lib/evidenceLoop';
 import { FrameGovernor } from '../lib/frameGovernor';
+import type { VerificationGraph } from '../lib/verificationGraph';
+import { GraphScene, type GraphHover } from './GraphScene';
+import { AMBER, BACKGROUND, iconTexture, MAX_DELTA, NV_GREEN, radialTexture, TAU } from './sceneKit';
 
 // The evidence loop in 3D, loaded lazily by LoopVisual (which also decides when it may
-// render at all). Two variants share the canvas setup:
-//   hero   — the landing page: evidence cards travelling through six stations.
-//   status — a work order: one node per requirement, coloured by its status.
-
-export interface LoopNode {
-  hex: string;
-  pulsing: boolean;
-}
+// render at all). Two variants share the canvas setup and adaptive quality:
+//   hero  — the landing page: evidence cards travelling through six stations.
+//   graph — a work order: its requirements, evidence and links, live from real data.
 
 interface Common {
   /** False under prefers-reduced-motion: nothing moves on its own. */
@@ -52,7 +48,14 @@ interface Common {
 
 export type LoopSceneProps = Common &
   (
-    | { variant: 'status'; nodes: LoopNode[]; coreHex: string }
+    | {
+        variant: 'graph';
+        graph: VerificationGraph;
+        coreHex: string;
+        onHover: (hover: GraphHover | null) => void;
+        onSelectRequirement: (id: string) => void;
+        onOpenEvidence: (id: string) => void;
+      }
     | {
         variant: 'hero';
         motion: RefObject<HeroMotion>;
@@ -62,11 +65,6 @@ export type LoopSceneProps = Common &
       }
   );
 
-const TAU = Math.PI * 2;
-const NV_GREEN = '#76b900';
-const AMBER = '#f5a524';
-const BACKGROUND = '#05070c';
-const MAX_DELTA = 0.1; // a resumed tab must not make anything jump; slow devices still keep up
 
 /**
  * Two known, harmless warnings that are not ours to fix:
@@ -97,7 +95,7 @@ setConsoleFunction((type, message, ...params) => {
  * Quality steps, from full to lowest. Hero: 1 = DPR 1, 2 = no bloom, 3 = fewer particles.
  * A work order's scene only has the first step.
  */
-const QUALITY_STEPS = { hero: 3, status: 1 } as const;
+const QUALITY_STEPS = { hero: 3, graph: 1 } as const;
 /** The lowest quality any scene reached this session; later scenes start there. */
 let sessionQuality = 0;
 
@@ -110,7 +108,7 @@ export default function LoopScene(props: LoopSceneProps) {
     <Canvas
       dpr={quality >= 1 ? 1 : [1, 1.5]}
       frameloop={!active ? 'never' : animate ? 'always' : 'demand'}
-      camera={hero ? { position: [0, 3.2, 9], fov: 38, near: 0.1, far: 60 } : { position: [0, 2.6, 5.2], fov: 42 }}
+      camera={hero ? { position: [0, 3.2, 9], fov: 38, near: 0.1, far: 60 } : { position: [0, 7, 7.5], fov: 30 }}
       gl={{ antialias: !hero, alpha: !hero, powerPreference: hero ? 'high-performance' : 'default' }}
       onCreated={({ gl }) => {
         gl.domElement.addEventListener(
@@ -145,7 +143,14 @@ export default function LoopScene(props: LoopSceneProps) {
           labels={props.labels}
         />
       ) : (
-        <StatusLoop nodes={props.nodes} coreHex={props.coreHex} animate={animate} />
+        <GraphScene
+          graph={props.graph}
+          coreHex={props.coreHex}
+          animate={animate}
+          onHover={props.onHover}
+          onSelectRequirement={props.onSelectRequirement}
+          onOpenEvidence={props.onOpenEvidence}
+        />
       )}
     </Canvas>
   );
@@ -514,176 +519,6 @@ function Particles({ animate, count }: { animate: boolean; count: number }) {
         <icosahedronGeometry args={[1, 1]} />
         <meshBasicMaterial transparent opacity={0.6} depthWrite={false} toneMapped={false} />
       </instancedMesh>
-    </group>
-  );
-}
-
-/** A white radial falloff, tinted by the material colour. */
-function radialTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 128;
-  const context = canvas.getContext('2d');
-  if (context) {
-    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, 'rgba(255,255,255,0.55)');
-    gradient.addColorStop(0.45, 'rgba(255,255,255,0.12)');
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 128, 128);
-  }
-  return new CanvasTexture(canvas);
-}
-
-/** Line icons for the cards, drawn once on a canvas: a photo, a video, a document. */
-function iconTexture(kind: (typeof EVIDENCE_KINDS)[number]) {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 128;
-  const c = canvas.getContext('2d');
-  if (c) {
-    c.strokeStyle = '#f1f5f9';
-    c.fillStyle = '#f1f5f9';
-    c.lineWidth = 7;
-    c.lineJoin = c.lineCap = 'round';
-    c.beginPath();
-    if (kind === 'photo') {
-      c.roundRect(14, 26, 100, 76, 12);
-      c.stroke();
-      c.beginPath();
-      c.moveTo(24, 92);
-      c.lineTo(52, 60);
-      c.lineTo(72, 80);
-      c.lineTo(86, 66);
-      c.lineTo(104, 92);
-      c.stroke();
-      c.beginPath();
-      c.arc(88, 46, 8, 0, TAU);
-      c.fill();
-    } else if (kind === 'video') {
-      c.roundRect(14, 26, 100, 76, 12);
-      c.stroke();
-      c.beginPath();
-      c.moveTo(54, 46);
-      c.lineTo(82, 64);
-      c.lineTo(54, 82);
-      c.closePath();
-      c.fill();
-    } else {
-      c.moveTo(34, 14);
-      c.lineTo(78, 14);
-      c.lineTo(98, 34);
-      c.lineTo(98, 114);
-      c.lineTo(34, 114);
-      c.closePath();
-      c.stroke();
-      for (const y of [52, 70, 88]) {
-        c.beginPath();
-        c.moveTo(48, y);
-        c.lineTo(84, y);
-        c.stroke();
-      }
-    }
-  }
-  return new CanvasTexture(canvas);
-}
-
-// ---------------------------------------------------------------- status
-
-const STATUS_RADIUS = 2;
-
-function StatusLoop({ nodes, coreHex, animate }: { nodes: LoopNode[]; coreHex: string; animate: boolean }) {
-  return (
-    <>
-      <ambientLight intensity={0.6} />
-      <pointLight position={[4, 6, 4]} intensity={60} />
-      <pointLight position={[-5, -2, -4]} intensity={25} color="#5eead4" />
-
-      <group rotation={[0.12, 0, 0.06]}>
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[STATUS_RADIUS, 0.018, 12, 160]} />
-          <meshBasicMaterial color="#3b4a69" />
-        </mesh>
-        <Tracer animate={animate} />
-        {nodes.map((node, index) => (
-          <StatusNode key={index} node={node} index={index} total={nodes.length} />
-        ))}
-
-        <Float speed={animate ? 2 : 0} rotationIntensity={0.8} floatIntensity={0.6}>
-          <mesh>
-            <icosahedronGeometry args={[0.62, 1]} />
-            <meshStandardMaterial color={coreHex} emissive={coreHex} emissiveIntensity={0.5} wireframe />
-          </mesh>
-          <mesh>
-            <icosahedronGeometry args={[0.36, 0]} />
-            <meshStandardMaterial color={coreHex} emissive={coreHex} emissiveIntensity={0.9} roughness={0.2} />
-          </mesh>
-        </Float>
-      </group>
-
-      <OrbitControls enableZoom={false} enablePan={false} autoRotate={animate} autoRotateSpeed={0.7} />
-    </>
-  );
-}
-
-function StatusNode({ node, index, total }: { node: LoopNode; index: number; total: number }) {
-  const material = useRef<MeshStandardMaterial>(null);
-  const mesh = useRef<Mesh>(null);
-  const angle = (index / total) * TAU - Math.PI / 2;
-
-  useFrame(({ clock }) => {
-    if (!material.current || !mesh.current) return;
-    const wave = node.pulsing ? 0.5 + 0.5 * Math.sin(clock.elapsedTime * 5) : 0;
-    material.current.emissiveIntensity = node.pulsing ? 0.5 + wave * 1.6 : 0.85;
-    mesh.current.scale.setScalar(node.pulsing ? 1 + wave * 0.25 : 1);
-  });
-
-  return (
-    <mesh ref={mesh} position={[Math.cos(angle) * STATUS_RADIUS, 0, Math.sin(angle) * STATUS_RADIUS]}>
-      <sphereGeometry args={[0.19, 32, 32]} />
-      <meshStandardMaterial ref={material} color={node.hex} emissive={node.hex} roughness={0.35} />
-      <NodeNumber text={String(index + 1)} />
-    </mesh>
-  );
-}
-
-/**
- * The node number, drawn on a canvas texture and shown as a sprite. (drei's <Html>
- * mounts a separate React root per label, which React 19 warns about on unmount.)
- */
-function NodeNumber({ text }: { text: string }) {
-  const texture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
-    const context = canvas.getContext('2d');
-    if (context) {
-      context.font = 'bold 40px Inter, system-ui, sans-serif';
-      context.fillStyle = '#cbd5e1';
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText(text, 32, 34);
-    }
-    return new CanvasTexture(canvas);
-  }, [text]);
-  useEffect(() => () => texture.dispose(), [texture]);
-
-  return (
-    <sprite position={[0, 0.42, 0]} scale={[0.26, 0.26, 1]}>
-      <spriteMaterial map={texture} transparent depthWrite={false} />
-    </sprite>
-  );
-}
-
-function Tracer({ animate }: { animate: boolean }) {
-  const group = useRef<Group>(null);
-  useFrame((_, delta) => {
-    if (animate && group.current) group.current.rotation.y -= Math.min(delta, MAX_DELTA) * 0.9;
-  });
-  return (
-    <group ref={group}>
-      <mesh position={[STATUS_RADIUS, 0, 0]}>
-        <sphereGeometry args={[0.06, 16, 16]} />
-        <meshBasicMaterial color="#e2fdf8" />
-      </mesh>
     </group>
   );
 }

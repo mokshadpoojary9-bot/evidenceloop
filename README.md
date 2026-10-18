@@ -242,7 +242,8 @@ frontend/src/
   App.tsx               Routes
   api.ts · auth.tsx · hooks.ts · lib/supabase.ts
   components/           Landing, WorkOrderList, WorkOrderForm, WorkOrderDetail, RequirementCard,
-                        EvidencePanel, EvidenceRequests, AuditTrail, LoopScene (3D), …
+                        EvidencePanel, EvidenceRequests, AuditTrail, VerificationOverview,
+                        LoopVisual → LoopScene / GraphScene (3D), GraphView2D (2D), …
 supabase/schema.sql     Tables, RLS policies, Realtime publication, private storage bucket
 render.yaml             Render blueprint (backend)
 frontend/vercel.json    SPA rewrite (frontend)
@@ -250,8 +251,31 @@ frontend/vercel.json    SPA rewrite (frontend)
 
 ### 3D scenes
 
-The landing hero and the work-order loop are React Three Fiber scenes in a lazily loaded chunk
-(`LoopVisual` → `LoopScene`). Whether a device gets 3D is measured, not guessed from its specs:
+The landing hero and the work-order graph are React Three Fiber scenes in a lazily loaded chunk
+(`LoopVisual` → `LoopScene`, plus `GraphScene` for the work order).
+
+**Work-order graph.** At the top of each work order there's a collapsible panel with a live view
+of its verification state next to a summary ("4 of 6 proven · 1 uncertain · 1 not proven"). It
+is drawn from the work order's real data (`lib/verificationGraph.ts`); nothing in it is a
+decorative animation.
+- **Requirements:** nodes on the outer ring, coloured by status. A requirement being re-checked
+  by a running verification pulses. When a decision arrives, by Supabase Realtime or by polling
+  in local mode, the node fades to its new colour. An open evidence request puts an amber
+  marker above each requirement it names.
+- **Evidence:** files sit on the inner ring with an icon for photo, video, document or audio.
+  A new file flies in from outside the rings.
+- **Links:** a line joins a file to each requirement an observation cites it for: bright for a
+  direct observation, dim for an inference. New links fade in once the agent has used the
+  evidence.
+- **Interaction:** hover a node for its title and status. Click a requirement to scroll to and
+  highlight its checklist card, or a file to open it in the evidence viewer. Drag sideways to
+  turn the graph a little. The canvas is `touch-action: pan-y`, so swiping over it still
+  scrolls the page.
+- **Layout:** node size scales with the count, so 1 to 30 requirements never overlap.
+- **2D fallback** (`GraphView2D`): the same graph, where every node is a keyboard-reachable
+  button.
+
+Whether a device gets 3D is measured, not guessed from its specs:
 
 - Without WebGL 2, or if the WebGL context is lost, the same loop is drawn as a 2D SVG.
 - The scene measures its frame rate for its first ~2 seconds (`lib/frameGovernor.ts`). Under

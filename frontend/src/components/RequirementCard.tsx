@@ -12,10 +12,12 @@ interface Props {
   requirement: RequirementWithAssessment;
   evidence: Evidence[];
   onOpenEvidence: (target: ViewTarget) => void;
+  /** Briefly ringed after it was selected in the verification graph. */
+  highlighted?: boolean;
 }
 
 /** One checklist item, expandable into Requirement → Evidence → Observation → Reasoning → Decision. */
-export function RequirementCard({ requirement, evidence, onOpenEvidence }: Props) {
+export function RequirementCard({ requirement, evidence, onOpenEvidence, highlighted = false }: Props) {
   const [open, setOpen] = useState(false);
   const { assessment } = requirement;
   const meta = REQUIREMENT_STATUS[requirement.status];
@@ -23,7 +25,11 @@ export function RequirementCard({ requirement, evidence, onOpenEvidence }: Props
   const cited = assessment ? [...new Set(assessment.observations.map((o) => o.evidenceId))] : [];
 
   return (
-    <motion.li layout="position" className="card overflow-hidden">
+    <motion.li
+      layout="position"
+      id={`requirement-${requirement.id}`}
+      className={`card overflow-hidden transition-shadow duration-500 ${highlighted ? 'ring-2 ring-sky-400/80' : ''}`}
+    >
       <button
         className="flex w-full items-start gap-3 p-4 text-left"
         onClick={() => setOpen((value) => !value)}
