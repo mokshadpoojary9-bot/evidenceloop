@@ -49,7 +49,9 @@ were completed. It is not an image classifier. The core question is always:
   `insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'you@example.com' on conflict (id) do update set role = excluded.role;`
 - Stack: Vite, React, TypeScript, Tailwind, React Router, Framer Motion, Three.js / React Three
   Fiber (frontend); Node.js, Express, TypeScript (backend). Avoid unnecessary rewrites.
-- Deployment targets (later): frontend → Vercel, backend → Render.
+- Deployment: frontend → Vercel (`frontend/vercel.json`), backend → Render (`render.yaml`).
+  Click-by-click steps: README "Deploy". After deploying: `npm run smoke -- <backend-url> <frontend-url>`.
+  `npm run check:media` verifies ffmpeg + PDF extraction (runs in the Render build).
 
 ## Secrets
 

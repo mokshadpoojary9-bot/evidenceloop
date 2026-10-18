@@ -394,6 +394,23 @@ export interface SystemStatus {
   maxUploadMb: number;
 }
 
+export interface ReadinessCheck {
+  ok: boolean;
+  /** A short reason. Never a configuration value. */
+  detail: string;
+}
+
+/** GET /api/health/ready: what this backend can actually reach and run (AI is in SystemStatus). */
+export interface ReadinessReport {
+  ready: boolean;
+  checks: {
+    database: ReadinessCheck;
+    storage: ReadinessCheck;
+    video: ReadinessCheck;
+    pdf: ReadinessCheck;
+  };
+}
+
 export type ReanalysisOutcome =
   | 'started'
   | 'queued'

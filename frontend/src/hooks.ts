@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from './api';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { api, serverWake } from './api';
 import { useToast } from './components/ui';
 import { supabase } from './lib/supabase';
 import type { EvidenceKind, ReanalysisOutcome, SystemStatus, WorkOrderDetail } from './types';
@@ -45,6 +45,11 @@ export function useSystem() {
   }, []);
 
   return { system, error };
+}
+
+/** True while requests wait for a sleeping API server (Render free tier) to wake up. */
+export function useServerWaking() {
+  return useSyncExternalStore(serverWake.subscribe, serverWake.isWaking);
 }
 
 /** While a run is in flight: follow the agent closely. */

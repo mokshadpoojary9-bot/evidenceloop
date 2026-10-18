@@ -11,6 +11,8 @@
     "test": "vitest run",
     "check:supabase": "tsx src/scripts/checkSupabase.ts",
     "check:nebius": "tsx src/scripts/checkNebius.ts",
+    "check:media": "tsx src/scripts/checkMedia.ts",
+    "smoke": "tsx src/scripts/smoke.ts",
     "seed:demo": "tsx src/scripts/seedDemo.ts"
   },
   "dependencies": {

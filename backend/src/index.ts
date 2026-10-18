@@ -4,6 +4,7 @@ import { createAiProvider, describeAi, verifyLiveAi } from './ai/index.js';
 import { createApp } from './app.js';
 import { corsOrigins, env } from './config/env.js';
 import { supabase } from './lib/supabase.js';
+import { createReadiness } from './readiness.js';
 import { LocalFileStore, SupabaseFileStore } from './stores/fileStore.js';
 import { LocalDb } from './stores/localDb.js';
 import { SupabaseDb } from './stores/supabaseDb.js';
@@ -24,14 +25,22 @@ const system: SystemStatus = {
 
 const ai = createAiProvider(files);
 const engine = createEngine(db, ai);
-const app = createApp({ db, files, engine, ai, supabase, system, corsOrigins });
+const readiness = createReadiness(supabase, env.SUPABASE_STORAGE_BUCKET);
+const app = createApp({ db, files, engine, ai, supabase, system, corsOrigins, readiness });
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   // Startup log reports modes only. Keys and URLs are never printed.
   console.log(`EvidenceLoop API listening on http://localhost:${env.PORT}`);
   console.log(`  persistence: ${system.persistence}${supabase ? '' : ` (${env.LOCAL_DATA_DIR}/, no auth — local development only)`}`);
   console.log(`  ai:          ${system.ai.mode} — ${system.ai.message}`);
+  console.log(`  cors:        ${corsOrigins.length} allowed origin(s)`);
 });
+
+// A short video on a slow uplink can take minutes to upload, longer than Node's default
+// 5-minute request timeout. Keep-alive outlasts Render's proxy so idle sockets are not reset.
+server.requestTimeout = 15 * 60_000;
+server.keepAliveTimeout = 120_000;
+server.headersTimeout = 125_000;
 
 // Live connection test: the dashboard only reports Nemotron as connected after this passes.
 if (system.ai.mode === 'nebius') {

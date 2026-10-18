@@ -56,18 +56,91 @@ function apiError(status: number, body: ErrorBody): ApiError {
   return new ApiError(detail || body.error || `Request failed (${status})`, status, body.code);
 }
 
+/*
+ * Waking the server. The deployed API (Render free tier) sleeps when idle; the first
+ * requests after that hang or fail with 502/503/504 for up to about a minute. While
+ * that lasts, reads are retried automatically and the UI shows "Waking up server…"
+ * instead of an error. Only with a separate API host (VITE_API_BASE_URL): in local
+ * development a failure means the backend is not running, and that is reported at once.
+ */
+const WAKE_ENABLED = BASE_URL !== '';
+const WAKE_DEADLINE_MS = 90_000;
+/** A request this slow before the server has ever answered is most likely a cold start. */
+const WAKE_SLOW_MS = 2_500;
+const WAKE_STATUSES = new Set([502, 503, 504]);
+
+let serverAnswered = false;
+let wakingCount = 0;
+const wakeListeners = new Set<() => void>();
+
+function setWaking(delta: 1 | -1) {
+  const before = wakingCount > 0;
+  wakingCount += delta;
+  if (before !== wakingCount > 0) wakeListeners.forEach((listener) => listener());
+}
+
+/** For useSyncExternalStore: whether the UI should say "Waking up server…". */
+export const serverWake = {
+  subscribe(listener: () => void) {
+    wakeListeners.add(listener);
+    return () => void wakeListeners.delete(listener);
+  },
+  isWaking: () => wakingCount > 0,
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const UNREACHABLE = 'Cannot reach the EvidenceLoop API. Is the backend running?';
+
+/** fetch, retried while a sleeping server wakes up. Writes are never retried. */
+async function fetchWithWake(url: string, init: RequestInit): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  if (!WAKE_ENABLED || (method !== 'GET' && method !== 'HEAD')) {
+    try {
+      const response = await fetch(url, init);
+      serverAnswered = true;
+      return response;
+    } catch {
+      throw new ApiError(UNREACHABLE, 0);
+    }
+  }
+
+  const started = Date.now();
+  let waking = false;
+  const startWaking = () => {
+    if (!waking) {
+      waking = true;
+      setWaking(1);
+    }
+  };
+  const slowTimer = serverAnswered ? undefined : setTimeout(startWaking, WAKE_SLOW_MS);
+  try {
+    for (let attempt = 0; ; attempt++) {
+      const outOfTime = Date.now() - started > WAKE_DEADLINE_MS;
+      try {
+        const response = await fetch(url, init);
+        if (!WAKE_STATUSES.has(response.status) || outOfTime) {
+          serverAnswered = true;
+          return response;
+        }
+      } catch {
+        if (outOfTime) throw new ApiError(`${UNREACHABLE} It did not wake up within ${WAKE_DEADLINE_MS / 1000} s.`, 0);
+      }
+      startWaking();
+      await sleep(Math.min(1000 * 2 ** attempt, 5000));
+    }
+  } finally {
+    clearTimeout(slowTimer);
+    if (waking) setWaking(-1);
+  }
+}
+
 async function send(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
   await authHeaders(headers);
 
-  let response: Response;
-  try {
-    response = await fetch(`${BASE_URL}${path}`, { ...init, headers });
-  } catch {
-    throw new ApiError('Cannot reach the EvidenceLoop API. Is the backend running?', 0);
-  }
-
+  const response = await fetchWithWake(`${BASE_URL}${path}`, { ...init, headers });
   if (!response.ok) throw apiError(response.status, (await response.json().catch(() => ({}))) as ErrorBody);
   return response;
 }
@@ -82,7 +155,7 @@ async function upload<T>(path: string, form: FormData, onProgress?: (fraction: n
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress?.(event.loaded / event.total);
     };
-    xhr.onerror = () => reject(new ApiError('Cannot reach the EvidenceLoop API. Is the backend running?', 0));
+    xhr.onerror = () => reject(new ApiError(UNREACHABLE, 0));
     xhr.onload = () => {
       let body: unknown = {};
       try {

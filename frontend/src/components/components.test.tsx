@@ -23,7 +23,11 @@ const apiMock = vi.hoisted(() => ({
   dashboard: vi.fn(),
   listWorkOrders: vi.fn(),
 }));
-vi.mock('../api', () => ({ api: apiMock, fileUrl: (url: string | null) => url }));
+vi.mock('../api', () => ({
+  api: apiMock,
+  fileUrl: (url: string | null) => url,
+  serverWake: { subscribe: () => () => {}, isWaking: () => false },
+}));
 const authMock = vi.hoisted(() => ({
   enabled: true,
   loading: false,

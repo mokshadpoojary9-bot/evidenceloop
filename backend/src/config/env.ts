@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMode } from '../types.js';
+import { parseCorsOrigins } from './cors.js';
 
 // Load backend/.env when present; in production the host provides real env vars.
 try {
@@ -47,7 +48,7 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 
-export const corsOrigins = env.CORS_ORIGIN.split(',').map((origin) => origin.trim());
+export const corsOrigins = parseCorsOrigins(env.CORS_ORIGIN);
 
 export const isSupabaseConfigured = Boolean(env.SUPABASE_URL && env.SUPABASE_SECRET_KEY);
 export const isNebiusConfigured = Boolean(env.NEBIUS_API_KEY && env.NEBIUS_MODEL);
@@ -62,8 +63,10 @@ if (env.NODE_ENV === 'production' && !isSupabaseConfigured) {
   process.exit(1);
 }
 
+// The fixture is not AI inference. A production deployment that asks for it is misconfigured.
 if (env.DEV_FIXTURE_AI === 'true' && env.NODE_ENV === 'production') {
-  console.warn('DEV_FIXTURE_AI is ignored because NODE_ENV=production.');
+  console.error('Refusing to start: DEV_FIXTURE_AI=true is not allowed with NODE_ENV=production. Set it to false.');
+  process.exit(1);
 }
 
 /**

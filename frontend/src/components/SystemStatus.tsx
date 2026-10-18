@@ -1,11 +1,13 @@
 import { Cpu, Database, FlaskConical, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { useServerWaking } from '../hooks';
 import type { SystemStatus } from '../types';
 import { Badge } from './ui';
 
 /** Compact AI-mode indicator for the header. */
 export function AiPill({ system, error }: { system: SystemStatus | null; error: string | null }) {
+  const waking = useServerWaking();
   if (error) return <Pill className="border-contradicted/40 text-contradicted-fg">API offline</Pill>;
-  if (!system) return <Pill className="border-line text-fg-subtle">Connecting…</Pill>;
+  if (!system) return <Pill className="border-line text-fg-subtle">{waking ? 'Waking up server…' : 'Connecting…'}</Pill>;
 
   switch (system.ai.mode) {
     case 'nebius':
@@ -169,5 +171,23 @@ export function SystemChips({ system, error }: { system: SystemStatus | null; er
         </Badge>
       )}
     </span>
+  );
+}
+
+/**
+ * Shown while the API server wakes from sleep (Render free tier, up to about a minute).
+ * Requests are retried automatically meanwhile, so there is nothing for the user to do.
+ */
+export function WakingBanner() {
+  const waking = useServerWaking();
+  if (!waking) return null;
+  return (
+    <div
+      role="status"
+      className="fixed inset-x-0 top-3 z-50 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-2 rounded-full border border-analyzing/30 bg-surface px-4 py-2 text-sm font-semibold text-analyzing-fg shadow-lg"
+    >
+      <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden />
+      Waking up server… this can take up to a minute.
+    </div>
   );
 }

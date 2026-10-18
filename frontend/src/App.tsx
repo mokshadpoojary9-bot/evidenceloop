@@ -5,6 +5,7 @@ import { AppLayout, PublicLayout } from './components/AppShell';
 import { Dashboard } from './components/Dashboard';
 import { Landing } from './components/Landing';
 import { Login } from './components/Login';
+import { WakingBanner } from './components/SystemStatus';
 import { ToastProvider } from './components/ui';
 import { WorkOrderDetail } from './components/WorkOrderDetail';
 import { WorkOrderForm } from './components/WorkOrderForm';
@@ -19,6 +20,7 @@ export function App() {
           {/* Animations honour prefers-reduced-motion everywhere. */}
           <MotionConfig reducedMotion="user">
             <ToastProvider>
+              <WakingBanner />
               <Routes>
                 <Route element={<PublicLayout />}>
                   <Route index element={<Landing />} />

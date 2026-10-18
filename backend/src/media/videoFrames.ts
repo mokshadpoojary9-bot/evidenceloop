@@ -28,9 +28,18 @@ export interface SampleOptions {
 
 const FFMPEG_TIMEOUT_MS = 30_000;
 
+/**
+ * The ffmpeg binary: FFMPEG_PATH when set (e.g. a system ffmpeg on the host), otherwise the
+ * one ffmpeg-static downloaded for this platform at install time (Linux on Render).
+ */
+export function ffmpegPath(): string | null {
+  const override = process.env.FFMPEG_PATH?.trim();
+  return override || (ffmpegStatic as unknown as string | null);
+}
+
 export const defaultFfmpegRunner: FfmpegRunner = (args) =>
   new Promise((resolve, reject) => {
-    const binary = ffmpegStatic as unknown as string | null;
+    const binary = ffmpegPath();
     if (!binary) return reject(new Error('ffmpeg binary is not available on this platform'));
     const child = spawn(binary, args, { windowsHide: true });
     let stderr = '';

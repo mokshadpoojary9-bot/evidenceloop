@@ -12,7 +12,7 @@ import { createWorkOrdersRouter } from './routes/workOrders.js';
 import { getDashboard } from './stores/dashboard.js';
 import type { Db } from './stores/db.js';
 import { LocalFileStore, type FileStore } from './stores/fileStore.js';
-import type { SystemStatus, Viewer } from './types.js';
+import type { ReadinessReport, SystemStatus, Viewer } from './types.js';
 
 export interface AppDeps {
   db: Db;
@@ -24,16 +24,18 @@ export interface AppDeps {
   supabase: SupabaseClient | null;
   system: SystemStatus;
   corsOrigins: string[];
+  /** Backs GET /api/health/ready; omitted in tests. */
+  readiness?: () => Promise<ReadinessReport>;
 }
 
-export function createApp({ db, files, engine, ai, supabase, system, corsOrigins }: AppDeps) {
+export function createApp({ db, files, engine, ai, supabase, system, corsOrigins, readiness }: AppDeps) {
   const app = express();
 
   app.disable('x-powered-by');
   app.use(cors({ origin: corsOrigins }));
   app.use(express.json({ limit: '1mb' }));
 
-  app.use('/api', createSystemRouter(system));
+  app.use('/api', createSystemRouter(system, readiness));
 
   // Local development only: serve evidence files from disk. With Supabase the
   // browser gets short-lived signed URLs to a private bucket instead.

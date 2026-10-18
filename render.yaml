@@ -1,18 +1,31 @@
-# Render blueprint for the backend API.
-# Secrets are marked `sync: false` and must be entered in the Render dashboard.
+# Render blueprint for the backend API (New → Blueprint → this repo).
+# Secrets are marked `sync: false`: Render asks for them when the Blueprint is created.
+# Never commit their values.
 services:
   - type: web
     name: evidenceloop-api
     runtime: node
     plan: free
-    buildCommand: npm ci --include=dev && npm run build -w backend
+    # Backend workspace only. ffmpeg-static downloads its Linux binary during `npm ci`;
+    # check:media then encodes a test video and extracts a test PDF, so a deploy without
+    # working video/PDF support fails here instead of at the first upload.
+    buildCommand: npm ci --include=dev -w backend && npm run build -w backend && npm run check:media -w backend
     startCommand: npm run start -w backend
     healthCheckPath: /api/health
     envVars:
+      - key: NODE_VERSION
+        value: "24"
       - key: NODE_ENV
         value: production
+      # DEV ONLY fixture: the API refuses to start if this is true in production.
+      - key: DEV_FIXTURE_AI
+        value: "false"
+      # Comma-separated, no trailing slashes, e.g.
+      # https://your-app.vercel.app,http://localhost:5173,http://localhost:5174
       - key: CORS_ORIGIN
         sync: false
+      - key: MAX_UPLOAD_MB
+        value: "50"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SECRET_KEY

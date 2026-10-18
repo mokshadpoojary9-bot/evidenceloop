@@ -608,7 +608,7 @@ interrupted: delete `node_modules/ffmpeg-static/ffmpeg.exe` (or `ffmpeg`) and ru
 | Backend | `SUPABASE_SECRET_KEY` | **yes** |
 | Backend | `NEBIUS_API_KEY` | **yes** |
 | Backend | `NEBIUS_BASE_URL`, `NEBIUS_MODEL` | no |
-| Backend | `PORT`, `CORS_ORIGIN`, `MAX_UPLOAD_MB`, `SUPABASE_STORAGE_BUCKET`, `DEV_FIXTURE_AI` | no |
+| Backend | `PORT`, `CORS_ORIGIN`, `MAX_UPLOAD_MB`, `SUPABASE_STORAGE_BUCKET`, `DEV_FIXTURE_AI`, `FFMPEG_PATH` | no |
 | Frontend | `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | no (public) |
 
 ## Security
@@ -625,10 +625,100 @@ interrupted: delete `node_modules/ffmpeg-static/ffmpeg.exe` (or `ffmpeg`) and ru
 - Uploads are size-limited, type-checked against the declared evidence kind, and hashed
   (SHA-256) at upload for the audit trail.
 
-## Deployment
+## Deploy
 
-**Backend → Render.** Create a Blueprint from `render.yaml` and fill in the secret values in the
-dashboard. Set `CORS_ORIGIN` to the Vercel URL.
+Backend → **Render** (free web service, `render.yaml`), frontend → **Vercel** (`frontend/vercel.json`),
+auth / database / storage → the same **Supabase** project as local development. Do it in this
+order; values go into the dashboards only, never into the repository.
 
-**Frontend → Vercel.** Import the repo, set the Root Directory to `frontend` (framework preset:
-Vite), and set the three `VITE_*` variables.
+**What the code already handles**
+
+- `NODE_ENV=production` refuses to start without Supabase (no unauthenticated local mode) and
+  refuses `DEV_FIXTURE_AI=true` (the fixture is not AI).
+- The Render build runs `npm run check:media`: it encodes a test video with ffmpeg and extracts a
+  test PDF, so a deploy without working video/PDF support fails at build time. `FFMPEG_PATH`
+  can point at a system ffmpeg instead of the `ffmpeg-static` binary.
+- Uploads up to `MAX_UPLOAD_MB` (50); the server allows 15 minutes per request, so a short video
+  on a slow connection is not cut off.
+- Render's free tier sleeps when idle and takes up to about a minute to wake. The dashboard shows
+  **"Waking up server…"** and retries reads automatically instead of showing an error. Writes are
+  never retried.
+- `CORS_ORIGIN` is comma-separated; trailing slashes are ignored.
+- `frontend/vercel.json` rewrites every route to `index.html`, so deep links such as
+  `/work-orders/<id>` and the e-mail confirmation redirect work.
+- `GET /api/health/ready` reports database, storage bucket, ffmpeg and PDF extraction as pass/fail
+  with short reasons, never values.
+
+### a) Render (backend)
+
+1. [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**.
+2. Connect GitHub if asked, pick **evidenceloop**, branch `main`. Render reads `render.yaml` and
+   shows one service, `evidenceloop-api`.
+3. Fill in the values it asks for (names only here):
+   - `CORS_ORIGIN` → for now `http://localhost:5173,http://localhost:5174` (the Vercel URL is
+     added in step c)
+   - `SUPABASE_URL`
+   - `SUPABASE_SECRET_KEY`
+   - `NEBIUS_API_KEY`
+   - `NEBIUS_MODEL`
+
+   Already set by the Blueprint: `NODE_ENV=production`, `DEV_FIXTURE_AI=false`, `NODE_VERSION=24`,
+   `MAX_UPLOAD_MB=50`, `SUPABASE_STORAGE_BUCKET=evidence`, `NEBIUS_BASE_URL`.
+4. **Apply**. Open the `evidenceloop-api` service → **Events/Logs**. The build ends with
+   `PASS video (ffmpeg)` and `PASS pdf (unpdf)`, the log shows `ai live test: connected`, and the
+   status badge at the top turns green: **Live**.
+5. Copy the URL shown under the service name (`https://evidenceloop-api-xxxx.onrender.com`).
+   Check `<that URL>/api/health` in a browser: `{"status":"ok",…}`.
+
+### b) Vercel (frontend)
+
+1. [vercel.com](https://vercel.com) → **Add New…** → **Project** → import **evidenceloop**.
+2. **Root Directory** → **Edit** → `frontend` → Continue. **Framework Preset**: Vite (install,
+   build and output come from `frontend/vercel.json`; leave them as they are).
+3. **Environment Variables**:
+   - `VITE_API_BASE_URL` = the Render URL, **no trailing slash**
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` (the publishable key, never the secret key)
+4. **Deploy**. When it finishes → **Continue to Dashboard**; copy the production domain under
+   **Domains** (`https://<project>.vercel.app`), not the per-deployment URL with a hash in it.
+
+`VITE_*` values are compiled into the bundle: after changing one, **Redeploy**.
+
+### c) Render again (CORS)
+
+`evidenceloop-api` → **Environment** → `CORS_ORIGIN` →
+`https://<project>.vercel.app,http://localhost:5173,http://localhost:5174` → **Save, rebuild and
+deploy** (or Save, then **Manual Deploy → Deploy latest commit**).
+
+### d) Supabase (auth redirects)
+
+**Authentication → URL Configuration**:
+
+- **Site URL**: `https://<project>.vercel.app`
+- **Redirect URLs**: `https://<project>.vercel.app/**`, `http://localhost:5173/**`,
+  `http://localhost:5174/**`
+
+Save.
+
+### Smoke test
+
+```bash
+npm run smoke -- https://evidenceloop-api-xxxx.onrender.com https://<project>.vercel.app
+```
+
+Waits up to two minutes for a sleeping backend, then prints a pass/fail table: health, Nemotron
+configured and live-tested, Supabase persistence and auth, database reachable, private evidence
+bucket, ffmpeg, PDF extraction, CORS preflight from the Vercel origin, the frontend and an SPA deep
+link, and whether the bundle points at this backend. It uses public endpoints only, so it needs no
+keys and prints none. Exit code 0 means everything passed.
+
+### After deploying
+
+1. **Sign up** on the live site and confirm the e-mail (the link opens the Vercel URL).
+2. **Seed the demo** from your machine (`backend/.env` points at the same Supabase project):
+   `npm run seed:demo -- --owner <your email>`. The owner must be a technician, so seed before
+   any role change.
+3. **Reviewer.** A reviewer can read every work order but cannot upload evidence or run
+   verification, so use a second account for it (e.g. `you+reviewer@…`): sign it up, then in the
+   SQL editor:
+   `insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'you+reviewer@example.com' on conflict (id) do update set role = excluded.role;`
