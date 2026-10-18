@@ -248,6 +248,27 @@ render.yaml             Render blueprint (backend)
 frontend/vercel.json    SPA rewrite (frontend)
 ```
 
+### 3D scenes
+
+The landing hero and the work-order loop are React Three Fiber scenes in a lazily loaded chunk
+(`LoopVisual` → `LoopScene`). Whether a device gets 3D is measured, not guessed from its specs:
+
+- Without WebGL 2, or if the WebGL context is lost, the same loop is drawn as a 2D SVG.
+- The scene measures its frame rate for its first ~2 seconds (`lib/frameGovernor.ts`). Under
+  30 fps it switches to the 2D SVG for the rest of the session.
+- If the frame rate later drops below 45 fps, quality steps down one level at a time
+  (DPR 1 → Bloom off → fewer particles). It never steps back up, so it can't oscillate.
+  The current level is on the canvas as `data-quality` (0 = full).
+- It renders nothing while off-screen or in a hidden tab, and holds still under
+  `prefers-reduced-motion`.
+
+**Console:** two known, harmless three.js warnings are filtered in `LoopScene.tsx`, matched
+exactly; everything else three logs still reaches the console.
+- `THREE.Clock: This module has been deprecated`: R3F 9 still creates a `THREE.Clock`, and
+  the latest R3F (9.8.2) does too, so upgrading doesn't remove it.
+- Shader-compiler precision notes (`warning X4122`): Chrome and Edge on Windows add these for
+  shaders that compiled fine.
+
 ## Local setup
 
 Requires **Node.js 20.12+**.

@@ -18,16 +18,20 @@ export const HERO_LABEL =
   'turns green when the evidence proves the requirement, or amber when more is needed; amber cards go to Request ' +
   'more and loop back to be re-analyzed.';
 
+/** Set once a scene measured this device as too slow for 3D; later scenes start in 2D. */
+let tooSlowFor3D = false;
+
 /**
  * The verification loop, in 3D where the device can afford it, otherwise as a 2D drawing
  * of the same loop. Renders nothing while off-screen or in a hidden tab, holds still under
- * prefers-reduced-motion, and falls back to 2D if the WebGL context is lost.
+ * prefers-reduced-motion, and falls back to 2D if the WebGL context is lost or the measured
+ * frame rate is too low (see FrameGovernor).
  */
 export function LoopVisual(props: Props) {
   const { className = '' } = props;
   const container = useRef<HTMLDivElement>(null);
   const labels = useRef<(HTMLElement | null)[]>([]);
-  const [capable] = useState(canRender3D);
+  const [capable] = useState(() => !tooSlowFor3D && hasWebGL2());
   const [lost, setLost] = useState(false);
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const active = useOnScreen(container);
@@ -49,7 +53,15 @@ export function LoopVisual(props: Props) {
       <FlatLoop statuses={props.statuses} label={statusLabel} />
     );
   const show3D = capable && !lost;
-  const common = { animate: !reducedMotion, active, label: statusLabel, onContextLost: () => setLost(true) };
+  const common = {
+    animate: !reducedMotion,
+    active,
+    label: statusLabel,
+    onFallback: (reason: 'context-lost' | 'too-slow') => {
+      if (reason === 'too-slow') tooSlowFor3D = true;
+      setLost(true);
+    },
+  };
 
   return (
     <div ref={container} className={className}>
@@ -98,19 +110,16 @@ export function LoopVisual(props: Props) {
   );
 }
 
-/** WebGL 2, and not a low-end phone (little memory or few cores) or a data-saver connection. */
-function canRender3D(): boolean {
+/**
+ * Only WebGL 2 is required up front. Whether the device is fast enough is not guessed from
+ * its specs: the scene measures its own frame rate and falls back if it can't keep up.
+ */
+function hasWebGL2(): boolean {
   try {
-    if (!document.createElement('canvas').getContext('webgl2')) return false;
+    return document.createElement('canvas').getContext('webgl2') !== null;
   } catch {
     return false;
   }
-  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
-  if (nav.connection?.saveData) return false;
-  const touch = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  const lowMemory = nav.deviceMemory !== undefined && nav.deviceMemory < 4;
-  const fewCores = nav.hardwareConcurrency !== undefined && nav.hardwareConcurrency <= 4;
-  return !(touch && (lowMemory || fewCores));
 }
 
 function useMediaQuery(query: string) {

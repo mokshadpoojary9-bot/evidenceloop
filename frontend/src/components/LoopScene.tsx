@@ -1,12 +1,13 @@
 import { Environment, Float, Lightformer, OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
-import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   AdditiveBlending,
   BackSide,
   CanvasTexture,
   Color,
+  getConsoleFunction,
   type Group,
   type InstancedMesh,
   MathUtils,
@@ -14,6 +15,7 @@ import {
   type Mesh,
   type MeshStandardMaterial,
   Object3D,
+  setConsoleFunction,
   Vector3,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -25,6 +27,7 @@ import {
   type HeroMotion,
   STATION_COUNT,
 } from '../lib/evidenceLoop';
+import { FrameGovernor } from '../lib/frameGovernor';
 
 // The evidence loop in 3D, loaded lazily by LoopVisual (which also decides when it may
 // render at all). Two variants share the canvas setup:
@@ -43,7 +46,8 @@ interface Common {
   active: boolean;
   /** Accessible description of what the canvas shows. */
   label: string;
-  onContextLost: () => void;
+  /** The scene can't continue: the WebGL context was lost, or the device is too slow. */
+  onFallback: (reason: 'context-lost' | 'too-slow') => void;
 }
 
 export type LoopSceneProps = Common &
@@ -64,13 +68,47 @@ const AMBER = '#f5a524';
 const BACKGROUND = '#05070c';
 const MAX_DELTA = 0.1; // a resumed tab must not make anything jump; slow devices still keep up
 
+/**
+ * Two known, harmless warnings that are not ours to fix:
+ * - R3F 9 (latest release included) creates a THREE.Clock, which three r183+ reports as
+ *   deprecated whenever a canvas mounts.
+ * - On Windows, Chrome/Edge compile shaders through D3D, whose compiler adds precision notes
+ *   ("warning X4122 …") to the log of shaders that linked fine; three prints that log.
+ * Exactly these are dropped; everything else three logs goes to the console as before.
+ */
+function isKnownNoise(type: string, message: string, params: unknown[]) {
+  if (type !== 'warn') return false;
+  if (message.startsWith('THREE.Clock: This module has been deprecated')) return true;
+  if (message === 'THREE.WebGLProgram: Program Info Log:' && typeof params[0] === 'string') {
+    return params[0].split('\n').every((line) => line.trim() === '' || /: warning X\d+:/.test(line));
+  }
+  return false;
+}
+const forwardThreeLog = getConsoleFunction();
+setConsoleFunction((type, message, ...params) => {
+  if (isKnownNoise(type, message, params)) return;
+  if (forwardThreeLog) return forwardThreeLog(type, message, ...params);
+  const [first] = params as [{ isStackTrace?: boolean; getError: (m: string) => Error }?];
+  if (first?.isStackTrace) console[type](first.getError(message));
+  else console[type](message, ...params);
+});
+
+/**
+ * Quality steps, from full to lowest. Hero: 1 = DPR 1, 2 = no bloom, 3 = fewer particles.
+ * A work order's scene only has the first step.
+ */
+const QUALITY_STEPS = { hero: 3, status: 1 } as const;
+/** The lowest quality any scene reached this session; later scenes start there. */
+let sessionQuality = 0;
+
 export default function LoopScene(props: LoopSceneProps) {
-  const { animate, active, label, onContextLost } = props;
+  const { animate, active, label, onFallback } = props;
   const hero = props.variant === 'hero';
+  const [quality, setQuality] = useState(() => Math.min(sessionQuality, QUALITY_STEPS[props.variant]));
 
   return (
     <Canvas
-      dpr={[1, 1.5]}
+      dpr={quality >= 1 ? 1 : [1, 1.5]}
       frameloop={!active ? 'never' : animate ? 'always' : 'demand'}
       camera={hero ? { position: [0, 3.2, 9], fov: 38, near: 0.1, far: 60 } : { position: [0, 2.6, 5.2], fov: 42 }}
       gl={{ antialias: !hero, alpha: !hero, powerPreference: hero ? 'high-performance' : 'default' }}
@@ -79,15 +117,28 @@ export default function LoopScene(props: LoopSceneProps) {
           'webglcontextlost',
           (event) => {
             event.preventDefault();
-            onContextLost();
+            onFallback('context-lost');
           },
           { once: true },
         );
       }}
     >
-      <CanvasLabel label={label} />
+      <CanvasLabel label={label} quality={quality} />
+      {/* Under reduced motion frames are rendered on demand only, so there is no rate to measure. */}
+      {animate && (
+        <Governor
+          maxLevel={QUALITY_STEPS[props.variant]}
+          startLevel={quality}
+          onDegrade={(level) => {
+            sessionQuality = Math.max(sessionQuality, level);
+            setQuality(level);
+          }}
+          onFallback={() => onFallback('too-slow')}
+        />
+      )}
       {props.variant === 'hero' ? (
         <HeroLoop
+          quality={quality}
           animate={animate}
           motion={props.motion}
           activeStation={props.activeStation}
@@ -100,13 +151,38 @@ export default function LoopScene(props: LoopSceneProps) {
   );
 }
 
-/** The canvas element itself carries the description, so it is announced as one image. */
-function CanvasLabel({ label }: { label: string }) {
+/**
+ * The canvas element itself carries the description, so it is announced as one image.
+ * data-quality (0 = full) shows how far adaptive quality has stepped down.
+ */
+function CanvasLabel({ label, quality }: { label: string; quality: number }) {
   const canvas = useThree((state) => state.gl.domElement);
   useEffect(() => {
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', label);
-  }, [canvas, label]);
+    canvas.dataset.quality = String(quality);
+  }, [canvas, label, quality]);
+  return null;
+}
+
+/** Measures real frame rates: too slow at start-up → 2D; slow later → lower quality, one way. */
+function Governor({
+  maxLevel,
+  startLevel,
+  onDegrade,
+  onFallback,
+}: {
+  maxLevel: number;
+  startLevel: number;
+  onDegrade: (level: number) => void;
+  onFallback: () => void;
+}) {
+  const [governor] = useState(() => new FrameGovernor(maxLevel, startLevel));
+  useFrame((_, delta) => {
+    const verdict = governor.tick(delta);
+    if (verdict === 'fallback') onFallback();
+    else if (verdict === 'degrade') onDegrade(governor.quality);
+  });
   return null;
 }
 
@@ -127,11 +203,13 @@ function ringPoint(u: number, radius: number, target: Vector3) {
 }
 
 function HeroLoop({
+  quality,
   animate,
   motion,
   activeStation,
   labels,
 }: {
+  quality: number;
   animate: boolean;
   motion: RefObject<HeroMotion>;
   activeStation: number;
@@ -158,10 +236,10 @@ function HeroLoop({
           <Cards animate={animate} />
         </group>
       </Float>
-      <Particles animate={animate} />
+      <Particles animate={animate} count={quality >= 3 ? PARTICLE_COUNT_LOW : PARTICLE_COUNT} />
 
       <EffectComposer multisampling={4} enableNormalPass={false}>
-        <Bloom mipmapBlur intensity={0.9} luminanceThreshold={0.95} luminanceSmoothing={0.25} radius={0.72} />
+        {quality < 2 && <Bloom mipmapBlur intensity={0.9} luminanceThreshold={0.95} luminanceSmoothing={0.25} radius={0.72} />}
         <Vignette offset={0.28} darkness={0.55} />
       </EffectComposer>
     </>
@@ -399,9 +477,10 @@ function Cards({ animate }: { animate: boolean }) {
 }
 
 const PARTICLE_COUNT = 260;
+const PARTICLE_COUNT_LOW = 90;
 
 /** Drifting specks for depth: one instanced mesh, placed once, rotated slowly as a whole. */
-function Particles({ animate }: { animate: boolean }) {
+function Particles({ animate, count }: { animate: boolean; count: number }) {
   const group = useRef<Group>(null);
   const mesh = useRef<InstancedMesh>(null);
 
@@ -431,7 +510,7 @@ function Particles({ animate }: { animate: boolean }) {
 
   return (
     <group ref={group}>
-      <instancedMesh ref={mesh} args={[undefined, undefined, PARTICLE_COUNT]} frustumCulled={false}>
+      <instancedMesh ref={mesh} args={[undefined, undefined, PARTICLE_COUNT]} count={count} frustumCulled={false}>
         <icosahedronGeometry args={[1, 1]} />
         <meshBasicMaterial transparent opacity={0.6} depthWrite={false} toneMapped={false} />
       </instancedMesh>

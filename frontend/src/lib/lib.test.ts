@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { summary } from '../test/fixtures';
 import { CARD_COUNT, cardAt, cardFrame, easeStations, STATION_COUNT, stationAt } from './evidenceLoop';
+import { FrameGovernor, type GovernorVerdict } from './frameGovernor';
 import { describeInspection } from './inspection';
 import { DEFAULT_QUERY, queryWorkOrders } from './workOrderQuery';
 
@@ -98,5 +99,51 @@ describe('evidence loop (landing hero)', () => {
     expect(stationAt(0.5)).toBe(3);
     expect(stationAt(1)).toBe(STATION_COUNT - 1);
     expect(stationAt(-1)).toBe(0);
+  });
+});
+
+describe('FrameGovernor', () => {
+  /** Runs `seconds` of frames at `fps` and returns every verdict given. */
+  const run = (governor: FrameGovernor, fps: number, seconds: number) => {
+    const verdicts: GovernorVerdict[] = [];
+    for (let t = 0; t < seconds; t += 1 / fps) {
+      const verdict = governor.tick(1 / fps);
+      if (verdict) verdicts.push(verdict);
+    }
+    return verdicts;
+  };
+
+  it('keeps 3D at full quality when the probe holds 60 fps', () => {
+    const governor = new FrameGovernor(3);
+    expect(run(governor, 60, 10)).toEqual([]);
+    expect(governor.quality).toBe(0);
+  });
+
+  it('falls back to 2D, once, when the first two seconds stay under 30 fps', () => {
+    const governor = new FrameGovernor(3);
+    expect(run(governor, 20, 10)).toEqual(['fallback']);
+  });
+
+  it('also falls back on a device too slow to render 2 fps (long frames, not pauses)', () => {
+    expect(run(new FrameGovernor(3), 1.5, 20)).toEqual(['fallback']);
+  });
+
+  it('steps quality down one level per slow second, and never back up', () => {
+    const governor = new FrameGovernor(3);
+    expect(run(governor, 60, 3)).toEqual([]);
+    expect(run(governor, 40, 2.6)).toEqual(['degrade', 'degrade']);
+    expect(governor.quality).toBe(2);
+    expect(run(governor, 60, 5)).toEqual([]);
+    expect(governor.quality).toBe(2);
+    expect(run(governor, 35, 5)).toEqual(['degrade']);
+    expect(governor.settled).toBe(true);
+  });
+
+  it('treats a long pause (hidden tab) as a pause, not a slow frame', () => {
+    const governor = new FrameGovernor(3);
+    run(governor, 60, 3);
+    expect(governor.tick(4)).toBeNull();
+    expect(run(governor, 60, 3)).toEqual([]);
+    expect(governor.quality).toBe(0);
   });
 });
