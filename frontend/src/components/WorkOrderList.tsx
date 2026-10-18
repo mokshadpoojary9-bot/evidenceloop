@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
 import { Archive, ClipboardList, MapPin, Plus, Search } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '../api';
-import { useSystem } from '../hooks';
+import { LOCAL_POLL_MS, realtimeAvailable, usePolling, useSystem } from '../hooks';
 import { DEFAULT_QUERY, queryWorkOrders, type SortOrder, type StatusFilter } from '../lib/workOrderQuery';
 import { WORK_ORDER_STATUSES, type WorkOrderSummary } from '../types';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS, formatDate } from './labels';
@@ -21,9 +21,18 @@ export function WorkOrderList() {
   const shown = useMemo(() => (workOrders ? queryWorkOrders(workOrders, query) : null), [workOrders, query]);
   const filtered = query.search !== '' || query.status !== 'active';
 
-  useEffect(() => {
-    api.listWorkOrders().then(setWorkOrders, (err: Error) => setError(err.message));
+  const load = useCallback(() => {
+    api.listWorkOrders().then(
+      (list) => {
+        setWorkOrders(list);
+        setError(null);
+      },
+      (err: Error) => setError(err.message),
+    );
   }, []);
+  useEffect(load, [load]);
+  // Local mode has no Realtime: pick up work orders changed in another tab or by the API.
+  usePolling(load, LOCAL_POLL_MS, !realtimeAvailable);
 
   return (
     <div className="space-y-5">

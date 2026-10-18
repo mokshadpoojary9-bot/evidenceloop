@@ -94,12 +94,25 @@ export class DevFixtureProvider implements AiProvider {
         startSec: null,
         endSec: null,
       });
-      const observations = relevant.map((item) =>
-        observe(
-          item,
-          `A file of kind "${EVIDENCE_KIND_LABELS[item.kind]}" is attached. Its content was not inspected.`,
+      // Simulated inferences, so the UI's inferred links can be exercised: an attached
+      // SOP/manual this requirement doesn't ask for is treated as indirect, background
+      // support. Status is never based on these — only on the direct kinds above.
+      const background = evidence.filter((item) => item.kind === 'document' && !neededKinds.includes(item.kind));
+      const observations = [
+        ...relevant.map((item) =>
+          observe(
+            item,
+            `A file of kind "${EVIDENCE_KIND_LABELS[item.kind]}" is attached. Its content was not inspected.`,
+          ),
         ),
-      );
+        ...background.map((item) => ({
+          ...observe(
+            item,
+            `Inferred, simulated: an ${EVIDENCE_KIND_LABELS[item.kind]} is attached and is assumed to describe this step. It was not read.`,
+          ),
+          kind: 'inferred' as const,
+        })),
+      ];
       const base = { requirementId: requirement.id, confidence: null };
 
       if (contradicting.length > 0) {

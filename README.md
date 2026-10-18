@@ -56,6 +56,12 @@ result it produces is stored with `simulated: true` and labelled "Simulated · d
 dashboard and audit trail. It reports no confidence. It is ignored when `NODE_ENV=production` and
 whenever Nebius is configured.
 
+So that the dashboard's *inferred* links can be seen in a local demo, the fixture also adds a
+simulated **inferred** observation from an attached SOP/manual to each requirement that doesn't
+ask for one, labelled "Inferred, simulated … It was not read." The status still comes only from
+the direct kinds, and the verification policy still applies: an inference alone can never make a
+requirement PROVEN. Real Nemotron output is unaffected.
+
 ## Supabase — current status
 
 **Supabase has been verified live** (2026-10-18): auth, database, storage and Realtime.
@@ -277,7 +283,13 @@ decorative animation.
 
 Whether a device gets 3D is measured, not guessed from its specs:
 
-- Without WebGL 2, or if the WebGL context is lost, the same loop is drawn as a 2D SVG.
+- Without WebGL 2, the same loop is drawn as a 2D SVG.
+- If the WebGL context is lost (GPU reset, driver update, too many contexts), the 2D SVG stands
+  in at once. The canvas stays mounted but hidden and paused, because the loss event is
+  `preventDefault`ed. When the browser fires `webglcontextrestored`, three.js rebuilds its GPU
+  state and the 3D view returns. EvidenceLoop logs nothing for this. three.js itself logs one
+  line each way, `THREE.WebGLRenderer: Context Lost.` and `… Context Restored.`; that is
+  expected.
 - The scene measures its frame rate for its first ~2 seconds (`lib/frameGovernor.ts`). Under
   30 fps it switches to the 2D SVG for the rest of the session.
 - If the frame rate later drops below 45 fps, quality steps down one level at a time
@@ -342,6 +354,13 @@ configure custom SMTP under **Authentication → Emails** before real users sign
 
 With Supabase configured the API requires a signed-in user, files go to a private Storage bucket
 (served through short-lived signed URLs), and the dashboard updates live through Realtime.
+
+Without Supabase (local mode) there is no Realtime channel, so the work-order list and the work
+order page **poll every 5 seconds** while the tab is visible. They stop while it is hidden and
+catch up as soon as it is shown. Uploads and work orders created in another tab, or through the
+API, appear without a reload. With Supabase there is no 5-second poll; Realtime pushes the
+changes. In both modes the work order page also refreshes every second while a verification run
+is in flight, again only while the tab is visible (`usePolling` in `frontend/src/hooks.ts`).
 
 ### Enabling Nebius (when the key is available)
 

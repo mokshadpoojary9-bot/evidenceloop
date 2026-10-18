@@ -42,8 +42,10 @@ interface Common {
   active: boolean;
   /** Accessible description of what the canvas shows. */
   label: string;
-  /** The scene can't continue: the WebGL context was lost, or the device is too slow. */
-  onFallback: (reason: 'context-lost' | 'too-slow') => void;
+  /** The device measured too slow for 3D: switch to 2D for good. */
+  onFallback: () => void;
+  /** The WebGL context was lost (true) or restored (false). The scene stays mounted. */
+  onContextChange: (lost: boolean) => void;
 }
 
 export type LoopSceneProps = Common &
@@ -100,7 +102,7 @@ const QUALITY_STEPS = { hero: 3, graph: 1 } as const;
 let sessionQuality = 0;
 
 export default function LoopScene(props: LoopSceneProps) {
-  const { animate, active, label, onFallback } = props;
+  const { animate, active, label, onFallback, onContextChange } = props;
   const hero = props.variant === 'hero';
   const [quality, setQuality] = useState(() => Math.min(sessionQuality, QUALITY_STEPS[props.variant]));
 
@@ -111,14 +113,13 @@ export default function LoopScene(props: LoopSceneProps) {
       camera={hero ? { position: [0, 3.2, 9], fov: 38, near: 0.1, far: 60 } : { position: [0, 7, 7.5], fov: 30 }}
       gl={{ antialias: !hero, alpha: !hero, powerPreference: hero ? 'high-performance' : 'default' }}
       onCreated={({ gl }) => {
-        gl.domElement.addEventListener(
-          'webglcontextlost',
-          (event) => {
-            event.preventDefault();
-            onFallback('context-lost');
-          },
-          { once: true },
-        );
+        // preventDefault() tells the browser we want the context back; three.js rebuilds
+        // its GPU state on restore, so the same canvas simply resumes.
+        gl.domElement.addEventListener('webglcontextlost', (event) => {
+          event.preventDefault();
+          onContextChange(true);
+        });
+        gl.domElement.addEventListener('webglcontextrestored', () => onContextChange(false));
       }}
     >
       <CanvasLabel label={label} quality={quality} />
@@ -131,7 +132,7 @@ export default function LoopScene(props: LoopSceneProps) {
             sessionQuality = Math.max(sessionQuality, level);
             setQuality(level);
           }}
-          onFallback={() => onFallback('too-slow')}
+          onFallback={onFallback}
         />
       )}
       {props.variant === 'hero' ? (

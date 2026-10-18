@@ -31,15 +31,17 @@ let tooSlowFor3D = false;
 /**
  * The verification loop, in 3D where the device can afford it, otherwise as a 2D drawing
  * of the same loop. Renders nothing while off-screen or in a hidden tab, holds still under
- * prefers-reduced-motion, and falls back to 2D if the WebGL context is lost or the measured
- * frame rate is too low (see FrameGovernor).
+ * prefers-reduced-motion, and falls back to 2D for good if the measured frame rate is too
+ * low (see FrameGovernor). If the WebGL context is lost, the 2D drawing stands in while the
+ * paused canvas waits, still mounted, for the browser to restore it.
  */
 export function LoopVisual(props: Props) {
   const { className = '' } = props;
   const container = useRef<HTMLDivElement>(null);
   const labels = useRef<(HTMLElement | null)[]>([]);
   const [capable] = useState(() => !tooSlowFor3D && hasWebGL2());
-  const [lost, setLost] = useState(false);
+  const [tooSlow, setTooSlow] = useState(false);
+  const [contextLost, setContextLost] = useState(false);
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const active = useOnScreen(container);
   const [hover, setHover] = useState<{ at: GraphHover; width: number } | null>(null);
@@ -59,49 +61,58 @@ export function LoopVisual(props: Props) {
         onOpenEvidence={props.onOpenEvidence}
       />
     );
-  const show3D = capable && !lost;
+  const show3D = capable && !tooSlow;
   const common = {
     animate: !reducedMotion,
-    active,
+    active: active && !contextLost,
     label,
-    onFallback: (reason: 'context-lost' | 'too-slow') => {
-      if (reason === 'too-slow') tooSlowFor3D = true;
-      setLost(true);
+    onFallback: () => {
+      tooSlowFor3D = true;
+      setTooSlow(true);
+    },
+    onContextChange: (lost: boolean) => {
+      setContextLost(lost);
+      setHover(null);
     },
   };
 
   return (
     <div ref={container} className={className}>
-      {show3D ? (
-        <SceneBoundary fallback={flat}>
-          {/* While the 3D chunk loads, the hero shows its static gradient; a work order shows the 2D graph. */}
-          <Suspense fallback={props.variant === 'hero' ? null : flat}>
-            {props.variant === 'hero' ? (
-              <LoopScene
-                {...common}
-                variant="hero"
-                motion={props.motion}
-                activeStation={props.activeStation}
-                labels={labels}
-              />
-            ) : (
-              <LoopScene
-                {...common}
-                variant="graph"
-                graph={props.graph}
-                coreHex={props.coreHex}
-                onHover={onHover}
-                onSelectRequirement={props.onSelectRequirement}
-                onOpenEvidence={props.onOpenEvidence}
-              />
-            )}
-          </Suspense>
-        </SceneBoundary>
-      ) : (
-        flat
+      {show3D && (
+        // Kept in the tree while the context is lost (hidden, paused), so it can resume.
+        <div
+          className={contextLost ? 'invisible absolute inset-0' : 'contents'}
+          aria-hidden={contextLost || undefined}
+        >
+          <SceneBoundary fallback={flat}>
+            {/* While the 3D chunk loads, the hero shows its static gradient; a work order shows the 2D graph. */}
+            <Suspense fallback={props.variant === 'hero' ? null : flat}>
+              {props.variant === 'hero' ? (
+                <LoopScene
+                  {...common}
+                  variant="hero"
+                  motion={props.motion}
+                  activeStation={props.activeStation}
+                  labels={labels}
+                />
+              ) : (
+                <LoopScene
+                  {...common}
+                  variant="graph"
+                  graph={props.graph}
+                  coreHex={props.coreHex}
+                  onHover={onHover}
+                  onSelectRequirement={props.onSelectRequirement}
+                  onOpenEvidence={props.onOpenEvidence}
+                />
+              )}
+            </Suspense>
+          </SceneBoundary>
+        </div>
       )}
+      {(!show3D || contextLost) && flat}
 
-      {show3D && props.variant === 'hero' && (
+      {show3D && !contextLost && props.variant === 'hero' && (
         // Station names, positioned over the canvas by the scene each frame. They repeat the
         // step list beside the hero, so assistive technology skips them.
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
