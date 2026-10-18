@@ -2,14 +2,171 @@
 
 **Prove the work. Don't just trust the photo.**
 
-EvidenceLoop is an agentic multimodal evidence-verification system. Given a work order and its
-requirements, it decides whether the available evidence — photos, video, documents — actually
-*proves* each requirement was met. It does not classify an image and call it done. When proof is
-missing it says so, names what is missing, and requests the minimum additional evidence. When new
-evidence arrives it re-analyzes the requirements that evidence affects.
+Built for the **Nebius × NVIDIA Global AI Hackathon** · AI: **NVIDIA Nemotron via Nebius Token Factory**
+
+- **Live demo:** <coming soon>
+- **Demo video:** <coming soon>
+
+## In 30 seconds
+
+A technician says the job is done and uploads a photo. Does that photo actually prove that the
+right unit was installed, mounted, connected and tested? EvidenceLoop is an **agent** that answers
+that question for each requirement of a work order. NVIDIA Nemotron
+(`nvidia/Nemotron-3.5-Super-VL`) looks at the photos, video frames and documents. A code-enforced
+policy keeps it honest. Every requirement ends up `PROVEN`, `NOT_PROVEN`, `UNCERTAIN` or
+`CONTRADICTED`, with the observations and reasoning behind it. When proof is missing, the agent
+asks for the **minimum, specific** extra evidence ("Upload a 5–10 second video showing the
+emergency light functional test."). When that evidence arrives, it re-checks **only the
+requirements it affects**. A reviewer signs off, and the whole chain is exported as a PDF.
 
 > EvidenceLoop assists verification. It does not replace qualified inspectors or certification,
 > and it does not guarantee physical safety.
+
+## Problem → solution
+
+| Problem | EvidenceLoop |
+| --- | --- |
+| Field work is "proven" by a photo that nobody really checks. A photo of a light fitting doesn't show the right model, the wiring, or a working test. | Each requirement is judged on its own: does *this* evidence prove *this* requirement? A model-generated "looks fine" is not enough. A `PROVEN` status needs a direct observation of an attached file. |
+| Image classifiers say what is in a picture, not whether a job is done, and they guess when they're unsure. | Nemotron reasons over the work order, the requirements and every piece of evidence together. Insufficient evidence is `NOT_PROVEN`, stated as "I cannot verify this requirement from the available evidence." |
+| When proof is missing, people get vague rework requests ("send more photos"). | The agent's planner merges what is missing into the fewest, most specific requests. One upload can settle several requirements. |
+| Re-checking everything after every upload is slow and noisy, and old AI conclusions get trusted blindly. | New evidence re-analyzes only the affected requirements, from scratch. Earlier conclusions are never fed back to the model. |
+| There's no audit trail of *why* a job was accepted. | Requirement → Evidence → Observation → Reasoning → Decision is stored for every decision, alongside a timeline of every run, request and sign-off and a PDF report. |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser["Frontend: Vite · React · Tailwind · React Three Fiber"]
+    UI["Dashboard · Work orders · 3D live graph · Evidence viewer · Reviewer sign-off"]
+  end
+
+  subgraph API["Backend: Node.js · Express · TypeScript"]
+    Routes["REST routes<br/>work orders · evidence · reviews · SOP drafts · PDF report"]
+    Engine["agent/engine.ts<br/>verification loop"]
+    Media["media/<br/>PDF text (unpdf) · video frames (ffmpeg)"]
+    Provider["ai/nebiusProvider.ts"]
+    Policy["agent/policy.ts<br/>guardrails"]
+    Planner["agent/planner.ts<br/>minimum evidence requests"]
+    Audit["agent/audit.ts<br/>audit trail"]
+  end
+
+  subgraph Nebius["Nebius Token Factory"]
+    Nemotron["NVIDIA Nemotron<br/>nvidia/Nemotron-3.5-Super-VL"]
+  end
+
+  subgraph Supabase["Supabase"]
+    DB[("Postgres + RLS")]
+    Storage[("Private evidence bucket")]
+    Auth["Auth"]
+    RT["Realtime"]
+  end
+
+  UI -- "HTTPS + user JWT" --> Routes
+  UI -. "publishable key: sign-in, Realtime" .-> Auth
+  RT -. "live updates" .-> UI
+  Routes --> Engine
+  Engine --> Media
+  Media --> Provider
+  Engine --> Provider
+  Provider -- "images · PDF text · timestamped video frames" --> Nemotron
+  Nemotron -- "JSON assessments" --> Provider
+  Provider --> Policy
+  Policy --> Planner
+  Engine --> Audit
+  Engine -- "secret key (backend only)" --> DB
+  Routes --> Storage
+```
+
+**The loop:** plan the checklist → analyze evidence with Nemotron → policy checks every answer →
+detect missing or contradicting evidence → request the minimum additional evidence → new upload →
+re-analyze only the affected requirements → `VERIFIED` only when every mandatory requirement is
+proven → reviewer sign-off.
+
+## How NVIDIA Nemotron + Nebius Token Factory are used
+
+Production AI is **NVIDIA Nemotron served by Nebius Token Factory**. It is the only inference
+provider in this project. There is no other AI API or SDK, and the browser never calls the model.
+
+- **Model:** `nvidia/Nemotron-3.5-Super-VL` (vision-language), set by `NEBIUS_MODEL`.
+- **Endpoint:** Nebius's OpenAI-compatible `POST {NEBIUS_BASE_URL}/chat/completions`, called with
+  plain `fetch` (`backend/src/lib/nebius.ts`, `chatCompletion`). It uses JSON mode and
+  temperature 0, with retries and backoff on 429/5xx/timeouts. The key is read only by the
+  backend and is never logged.
+- **Verified live** on 2026-10-17: `npm run check:nebius` passed for text and image, and real
+  verification runs and SOP drafts went through the adapter and the policy. On deliberately
+  useless evidence (a blank photo, a test-pattern video, an unverified install sheet), Nemotron
+  returned `NOT_PROVEN` for every requirement with the required "cannot verify" sentence. Each
+  backend still proves its own connection with a startup live test. The UI says **"Nemotron
+  connected"** only after that test passes, and "not configured / not verified" otherwise.
+
+**What is sent** (`backend/src/ai/nebiusProvider.ts`, `NebiusNemotronProvider.assess`): one
+multimodal message. It holds the work order, every requirement being checked, and every piece of
+evidence, each tagged with its `evidenceId`:
+
+| Evidence | How it is sent | Not inspected (declared to the model) |
+| --- | --- | --- |
+| Photos | Inline base64 image (≤ 5 MB) | Larger images |
+| PDF | Text layer extracted on the backend (`unpdf`), first 20,000 characters | Scanned PDFs without a text layer, images inside PDFs |
+| Video | Up to 8 still frames (about one every 2 s, spread wider for long clips), each labelled with its timestamp, e.g. `frame at t=0:04 (4 s)` (`ffmpeg-static`) | What happens between frames; the soundtrack |
+| Text / transcript | Inline text, first 20,000 characters | The rest |
+| Audio | — | Everything (no transcription) |
+
+Anything not inspected is listed as "attached but NOT inspected", with the reason, so the model
+cannot claim to have seen it. Uploader notes are marked as unverified claims.
+
+**What comes back:** one JSON assessment per requirement, with `status`; `observations`, each
+citing an `evidenceId`, marked `direct` or `inferred`, with `startSec`/`endSec` for video;
+`reasoning`; a calibrated `confidence` (or `null`); and `missingEvidence` (specific, actionable
+requests). The same adapter drafts requirements from an SOP (`draftRequirements`). Each proposal
+must quote the SOP verbatim, and `agent/sopDraft.ts` discards any whose quote is not in the
+document.
+
+**How `agent/policy.ts` guards it** (`applyPolicy`, run on every model answer and covered by
+`policy.test.ts`): the model proposes and the policy decides. The policy can only make a decision
+*more* cautious:
+
+- A missing, malformed or misaddressed answer becomes `NOT_PROVEN`.
+- `PROVEN` without a direct observation of an actually attached file is downgraded to
+  `UNCERTAIN` or `NOT_PROVEN`. `CONTRADICTED` with no cited evidence becomes `UNCERTAIN`.
+- Observations that cite files not attached to the work order, and invalid timestamps, are
+  dropped.
+- Confidence is passed through or dropped, never computed. Out-of-range values are dropped, and
+  so is the confidence of an overridden status.
+- `NOT_PROVEN` and `UNCERTAIN` always say "I cannot verify this requirement from the available
+  evidence."
+- `VERIFIED` requires every mandatory requirement to be `PROVEN` (`overallStatus`). Any
+  contradiction blocks it.
+
+**The DEV fixture is clearly labelled.** `backend/src/ai/devFixtureProvider.ts` lets the loop run
+without a key (`DEV_FIXTURE_AI=true`). It is **not AI inference**: it never opens a file and only
+checks which *kinds* of evidence are attached. Everything it produces is stored with
+`simulated: true` and shown as "Simulated · dev fixture" in the UI, the audit trail and the PDF
+report, and it reports no confidence. It is ignored whenever Nebius is configured, and it can
+never run with `NODE_ENV=production`.
+
+## Key features
+
+- **Agentic verification loop:** plan → analyze → policy → detect missing and contradicting
+  evidence → request → re-analyze affected requirements only (`agent/engine.ts`).
+- **Minimum evidence requests:** missing needs are merged by kind, so one functional-test video
+  can settle two requirements. Requests can be answered inline on the work order page.
+- **Multimodal evidence:** photos, PDFs (text layer), video (timestamped frames), text. Video
+  observations jump the player to the cited moment.
+- **3D live verification view:** a React Three Fiber graph of requirements and evidence on every
+  work order. Nodes change colour as decisions arrive (Supabase Realtime), with a 2D fallback
+  chosen by measured frame rate.
+- **Requirements from an SOP:** Nemotron proposes requirements with verbatim quotes, and you
+  review them before anything is saved.
+- **Reviewer sign-off:** submit → in review → approve, reject or request evidence, enforced in the
+  backend, by RLS and by a database trigger. Approval is a human decision, never shown as
+  `VERIFIED`.
+- **Audit trail:** every run, decision, request and sign-off on a timeline, grouped by run.
+- **PDF report:** requirements, evidence with SHA-256, observations, decisions, requests, audit
+  trail and the disclaimer.
+- **Evidence viewer:** zoom and pan, video timeline markers, PDF pages, and what the AI can and
+  cannot inspect for each file.
+
+## Screenshots
 
 | Landing (3D hero) | Dashboard |
 | --- | --- |
@@ -17,78 +174,71 @@ evidence arrives it re-analyzes the requirements that evidence affects.
 | **Work order with the 3D verification graph** | **Evidence viewer** |
 | ![Room 204 work order: score, provenance and 3D graph](docs/screenshots/work-order.png) | ![Evidence viewer with the observations that cite the file](docs/screenshots/evidence-viewer.png) |
 
-*Screenshots show the seeded demo data (`npm run seed:demo`) in local DEV mode, so every result
-is labelled "Simulated · dev fixture". For the live demo with real Nemotron, see [DEMO.md](DEMO.md).*
+*The screenshots show the seeded demo data (`npm run seed:demo`) in local DEV mode, so every
+result is labelled "Simulated · dev fixture". For the demo with real Nemotron, see
+[DEMO.md](DEMO.md).*
 
-## AI provider — current status
+## Run locally in 5 commands
 
-Production AI is **NVIDIA Nemotron served by Nebius Token Factory**. It is the only inference
-provider in this project; no other AI API or SDK is used or may be added.
+Requires **Node.js 20.12+**.
 
-**Nebius has been verified live** (2026-10-17) with `nvidia/Nemotron-3.5-Super-VL`:
-`npm run check:nebius` passed (text and image), and a real verification run and a real SOP draft
-went through the adapter and the policy with no corrections needed. On deliberately useless
-evidence (a blank photo, a test-pattern video, an unverified install sheet) the model returned
-`NOT_PROVEN` for every requirement with the required "cannot verify" sentence.
+```bash
+git clone https://github.com/mokshadpoojary9-bot/evidenceloop.git && cd evidenceloop
+npm install
+cp backend/.env.example backend/.env   # set NEBIUS_API_KEY + NEBIUS_MODEL, or DEV_FIXTURE_AI=true
+npm run seed:demo                      # three demo work orders (labelled simulated)
+npm run dev                            # API on :4000, dashboard on http://localhost:5173
+```
 
-Each deployment still has to prove its own connection. If `NEBIUS_API_KEY` and `NEBIUS_MODEL` are
-not set on a backend:
+With no Supabase values, this runs in **local mode**: no sign-in, with data in `backend/.data/`.
+Open a demo work order and follow the 2-minute click path in [DEMO.md](DEMO.md).
 
-- the API and dashboard report "Production AI is not configured";
-- verification runs are refused (`503 AI_NOT_CONFIGURED`) — nothing is ever marked proven;
-- everything else works: work orders, checklists, evidence upload, audit trail.
+**With Supabase:** run `supabase/schema.sql`, fill in the Supabase values (see
+[Connecting Supabase](#connecting-supabase)), sign up in the app and confirm your email, then seed
+the demo into your account:
 
-When Nebius is configured, the backend runs a live connection test at startup (one small text
-request, one small image request). The dashboard says **"Production AI: NVIDIA Nemotron via
-Nebius — connected"** with the model id only after that test passes; until then it shows
-"Nemotron configured · not verified".
+```bash
+npm run seed:demo -- --owner <your email>
+```
 
-### What the model can inspect
+## Honest limitations
 
-| Evidence | How it is sent | Not inspected |
-| --- | --- | --- |
-| Photos | Inline image (≤ 5 MB) — needs a vision Nemotron model | Larger images |
-| Text / transcript | Inline text, first 20,000 characters | The rest |
-| PDF | Text layer extracted on the backend (`unpdf`), first 20,000 characters | Scanned PDFs without a text layer (no OCR), images inside PDFs |
-| Video | Up to 8 still frames, about one every 2 s (spread wider for long clips), each labelled with its timestamp so observations carry `startSec`/`endSec` (`ffmpeg-static`) | What happens between frames; the soundtrack |
-| Audio | — | Everything (no transcription) |
+- **Audio is not inspected** (no transcription), and neither are video soundtracks. **Scanned
+  PDFs without a text layer are not OCR'd.** Both are shown as "attached but not inspected", and
+  the model is told so. Only NVIDIA Nemotron via Nebius may be used, so both wait for a Nemotron
+  model on Token Factory that accepts audio or page images.
+- Video is seen as at most 8 still frames. Nothing between frames is inspected.
+- **The demo images are drawn illustrations**, made for the DEV fixture walkthrough. Real Nemotron
+  judges them on what they actually show and may, correctly, refuse to verify them. For a
+  real-model demo, use real photos and video.
+- The seeded demo results come from the DEV fixture and are labelled simulated. Click **Run
+  verification** with Nebius configured to get a real Nemotron result.
+- EvidenceLoop **assists** verification. It does not replace qualified inspectors or
+  certification, and it never claims physical safety is guaranteed.
 
-Anything not inspected is declared to the model as "attached but NOT inspected", with the reason,
-so it cannot claim to have seen it.
+---
 
-### DEV ONLY fixture
-
-To exercise the verification loop without a key, set `DEV_FIXTURE_AI=true` in `backend/.env`.
-This swaps in a deterministic fixture (`backend/src/ai/devFixtureProvider.ts`) that is **not AI
-inference**: it never opens a file and only checks which *kinds* of evidence are attached. Every
-result it produces is stored with `simulated: true` and labelled "Simulated · dev fixture" in the
-dashboard and audit trail. It reports no confidence. It is ignored when `NODE_ENV=production` and
-whenever Nebius is configured.
-
-So that the dashboard's *inferred* links can be seen in a local demo, the fixture also adds a
-simulated **inferred** observation from an attached SOP/manual to each requirement that doesn't
-ask for one, labelled "Inferred, simulated … It was not read." The status still comes only from
-the direct kinds, and the verification policy still applies: an inference alone can never make a
-requirement PROVEN. Real Nemotron output is unaffected.
-
-## Supabase — current status
+## Supabase: current status
 
 **Supabase has been verified live** (2026-10-18): auth, database, storage and Realtime.
 
-- `npm run check:supabase` passes every check: secret key, email sign-up with required email
+- `npm run check:supabase` passes every check: the secret key, email sign-up with required email
   confirmation, all 9 tables with every column the backend uses, RLS enabled and read policies
   on every table, the Realtime publication, the review trigger, and a private `evidence` bucket.
-- An end-to-end run against the live project, with real Nemotron, passed: sign-up returns no
-  session until the email is confirmed and sign-in is refused until then; sign-out revokes the
-  session; the emergency-light work order was created from the template; before/after/close-up
-  photos and the SOP PDF landed in the private bucket and were served only through signed URLs
-  (public URLs and the browser key are refused); a Nemotron run gave every requirement a status
-  and opened evidence requests; Realtime delivered the changes while the run was in flight (and
-  nothing to another technician); a video answering the request triggered re-analysis; the PDF
-  report exported. That run showed re-analysis covering all six requirements, because none was
-  proven yet; it now covers only the affected ones (see *Re-analysis* below). The fix is covered
-  by tests and has not been re-run against Nemotron. RLS was checked with three accounts, and the reviewer rules (below) held in
-  both the backend and the database.
+- An end-to-end run against the live project, with real Nemotron, passed:
+  - Sign-up returns no session until the email is confirmed, and sign-in is refused until then.
+    Sign-out revokes the session.
+  - Photos and the SOP PDF landed in the private bucket and were served only through signed URLs.
+    Public URLs and the browser key are refused.
+  - A Nemotron run gave every requirement a status and opened evidence requests. Realtime
+    delivered the changes while the run was in flight, and nothing reached another technician.
+  - A video answering the request triggered re-analysis, and the PDF report exported.
+  - RLS was checked with three accounts, and the reviewer rules held in both the backend and the
+    database.
+
+  That run re-analyzed all six requirements, because none was proven yet. Re-analysis now covers
+  only the affected ones (see *Re-analysis* below). That change is covered by tests but has not
+  been re-run against Nemotron.
 
 ## The demo scenario
 
@@ -272,26 +422,9 @@ as the list.
   observations, decisions, evidence requests and the full audit trail, with the disclaimer that
   EvidenceLoop does not replace qualified inspectors. DEV fixture results are labelled simulated.
 
-## Architecture
+## Architecture: details
 
-```
-            ┌──────────────────────────┐        ┌───────────────────────────────────────────┐
- Browser ──▶│ frontend (Vite + React)  │──HTTP─▶│ backend (Express)                          │
-            │ Tailwind · React Router  │        │                                           │
-            │ Framer Motion · R3F      │        │  routes ──▶ agent/engine  (the loop)       │
-            └───────────┬──────────────┘        │               │                           │
-                        │ publishable key       │               ├─▶ ai/provider  (interface) │
-                        │ (sign-in, Realtime,   │               │     ├─ NebiusNemotron  ◀── production
-                        │  RLS-limited reads)   │               │     └─ DevFixture      ◀── DEV ONLY
-                        ▼                       │               ├─▶ agent/policy  (guardrails)│
-                 ┌─────────────┐  secret key    │               ├─▶ agent/planner (min. request)
-                 │  Supabase   │◀───────────────│               └─▶ agent/audit               │
-                 │ Postgres ·  │                │  stores: Db + FileStore                    │
-                 │ Auth ·      │                │    Supabase  |  local disk (dev fallback)  │
-                 │ Storage ·   │                └───────────────────────────────────────────┘
-                 │ Realtime    │
-                 └─────────────┘
-```
+The diagram is in [Architecture](#architecture) above. The loop can run with either provider behind `ai/provider.ts` (`NebiusNemotronProvider` in production, `DevFixtureProvider` for DEV ONLY), and either store behind `stores/db.ts` (Supabase, or local disk as a dev-only fallback).
 
 ### The verification loop (`backend/src/agent/engine.ts`)
 
@@ -330,11 +463,15 @@ backend/src/
   types.ts              Domain model — shared with the frontend via the @domain alias
   templates.ts          Requirement library (the demo scenario)
   config/env.ts         Environment validation; decides the AI mode
-  ai/                   provider.ts (interface) · nebiusProvider.ts · devFixtureProvider.ts
-  agent/                engine.ts · policy.ts · planner.ts · audit.ts
+  ai/                   provider.ts (interface) · nebiusProvider.ts · devFixtureProvider.ts · liveCheck.ts · modelJson.ts
+  agent/                engine.ts (the loop) · policy.ts · planner.ts · sopDraft.ts · audit.ts
+  media/                pdfText.ts (unpdf) · videoFrames.ts (ffmpeg-static) · documentText.ts
+  reports/              workOrderReport.ts (PDF export)
+  demo/                 seedDemo.ts (npm run seed:demo)
+  scripts/              checkNebius.ts · checkSupabase.ts · seedDemo.ts
   stores/               db.ts (interface) · supabaseDb.ts · localDb.ts · fileStore.ts · workOrders.ts
   middleware/           auth.ts (Supabase JWT) · errors.ts
-  routes/               health.ts (health, system, templates) · workOrders.ts
+  routes/               health.ts (health, system, templates) · workOrders.ts · requirements.ts · reviews.ts
   lib/                  supabase.ts · nebius.ts (HTTP client)
 frontend/src/
   App.tsx               Routes
@@ -344,6 +481,7 @@ frontend/src/
                         WorkOrderForm, WorkOrderDetail, RequirementCard,
                         EvidencePanel, EvidenceRequests, AuditTrail, VerificationOverview,
                         LoopVisual → LoopScene / GraphScene (3D), GraphView2D (2D), …
+demo/                   Sample evidence for the seeded work orders (see demo/SOURCES.md)
 supabase/schema.sql     Tables, RLS policies, Realtime publication, private storage bucket
 render.yaml             Render blueprint (backend)
 frontend/vercel.json    SPA rewrite (frontend)
@@ -399,38 +537,28 @@ exactly; everything else three logs still reaches the console.
 - Shader-compiler precision notes (`warning X4122`): Chrome and Edge on Windows add these for
   shaders that compiled fine.
 
-## Local setup
+## Local setup: details
 
-Requires **Node.js 20.12+**.
-
-```bash
-npm install
-cp backend/.env.example backend/.env      # then set DEV_FIXTURE_AI=true to try the loop
-npm run dev                               # API on :4000, dashboard on :5173
-```
-
-Open http://localhost:5173.
-
-With no Supabase credentials the backend runs in **local mode**: data and uploads are kept in
-`backend/.data/` (git-ignored) and there is no sign-in. Local mode is refused when
+With no Supabase credentials the backend runs in **local mode**. Data and uploads are kept in
+`backend/.data/` (git-ignored), and there is no sign-in. Local mode is refused when
 `NODE_ENV=production`.
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | API and dashboard with hot reload |
-| `npm test` | Backend tests (policy, planner, media, Nebius client, full demo loop and review flow over HTTP) and frontend tests (components, filters, AI status labels) |
+| `npm test` | Backend tests (policy, planner, media, Nebius client and multimodal payload, full demo loop and review flow over HTTP) and frontend tests (components, filters, AI status labels) |
 | `npm run lint` | ESLint over both workspaces |
 | `npm run typecheck` | Type-check both workspaces |
-| `npm run check` | Lint, typecheck, test and build — run before every commit |
+| `npm run check` | Lint, typecheck, test and build. Run before every commit |
 | `npm run build` | Build both workspaces |
-| `npm run check:supabase` | Checks the Supabase key, auth settings (email confirmation), tables and columns, RLS and policies, Realtime, the review trigger, and that the storage bucket exists and is private |
 | `npm run seed:demo` | Seeds the three demo work orders (DEV fixture, labelled simulated). `-- --reset` removes only them. `-- --owner <email>` in Supabase mode |
-| `npm run check:nebius` | Live Nebius test: prints configured yes/no, model id, text OK/FAIL, image (vision) OK/FAIL and latency. Never prints the key |
+| `npm run check:supabase` | Checks the Supabase key, auth settings (email confirmation), tables and columns, RLS and policies, Realtime, the review trigger, and that the storage bucket exists and is private |
+| `npm run check:nebius` | Live Nebius test: prints configured yes/no, the model id, text OK/FAIL, image (vision) OK/FAIL and latency. Never prints the key |
 
 ### Connecting Supabase
 
-1. Create a project and run the whole of `supabase/schema.sql` in the SQL editor (it is
-   idempotent; run it again after pulling schema changes). It also creates the private
+1. Create a project and run the whole of `supabase/schema.sql` in the SQL editor. It is
+   idempotent, so run it again after pulling schema changes. It also creates the private
    `evidence` bucket.
 2. Backend (`backend/.env`): `SUPABASE_URL`, `SUPABASE_SECRET_KEY`.
 3. Frontend (`frontend/.env.local`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
@@ -442,33 +570,34 @@ With no Supabase credentials the backend runs in **local mode**: data and upload
    The confirmation email links back to `/login` on the origin the user signed up from, which
    signs them in. When the frontend is deployed, add its URL the same way
    (`https://<your-app>.vercel.app/**`) and make it the Site URL.
-6. Run `npm run check:supabase`; every line must say PASS.
+6. Run `npm run check:supabase`. Every line must say PASS.
 
-Supabase's built-in email sender is rate-limited (a few emails per hour) and meant for testing;
-configure custom SMTP under **Authentication → Emails** before real users sign up.
+Supabase's built-in email sender is rate-limited (a few emails per hour) and meant for testing.
+Configure custom SMTP under **Authentication → Emails** before real users sign up.
 
-With Supabase configured the API requires a signed-in user, files go to a private Storage bucket
+With Supabase configured, the API requires a signed-in user, files go to a private Storage bucket
 (served through short-lived signed URLs), and the dashboard updates live through Realtime.
 
-Without Supabase (local mode) there is no Realtime channel, so the work-order list and the work
+Without Supabase (local mode) there is no Realtime channel, so the work order list and the work
 order page **poll every 5 seconds** while the tab is visible. They stop while it is hidden and
-catch up as soon as it is shown. Uploads and work orders created in another tab, or through the
-API, appear without a reload. With Supabase there is no 5-second poll; Realtime pushes the
-changes. In both modes the work order page also refreshes every second while a verification run
+catch up as soon as it is shown, so uploads and work orders created in another tab, or through
+the API, appear without a reload. With Supabase there is no 5-second poll; Realtime pushes the
+changes. In both modes, the work order page also refreshes every second while a verification run
 is in flight, again only while the tab is visible (`usePolling` in `frontend/src/hooks.ts`).
 
-### Enabling Nebius (when the key is available)
+### Enabling Nebius
 
-Set `NEBIUS_API_KEY` and `NEBIUS_MODEL` (the exact Nemotron model id from the Nebius console) in
-`backend/.env`, or in Render's environment settings, then run `npm run check:nebius`.
+Set `NEBIUS_API_KEY` and `NEBIUS_MODEL` (the exact Nemotron model id from the Nebius console,
+e.g. `nvidia/Nemotron-3.5-Super-VL`) in `backend/.env`, or in Render's environment settings, then
+run `npm run check:nebius`.
 
 EvidenceLoop inspects photos and video frames, so the model must be **vision-capable**. If the
-check reports text OK but image FAIL, pick a vision Nemotron model (Nemotron Nano VL / Omni) in the
-Token Factory console and set `NEBIUS_MODEL` to its id.
+check reports text OK but image FAIL, pick a vision Nemotron model in the Token Factory console
+and set `NEBIUS_MODEL` to its id.
 
-`ffmpeg-static` downloads an ffmpeg binary in its install script; the root `package.json` approves
-that script under `allowScripts`. If video frames fail with `EFTYPE`, the download was
-interrupted — delete `node_modules/ffmpeg-static/ffmpeg.exe` (or `ffmpeg`) and run
+`ffmpeg-static` downloads an ffmpeg binary in its install script, and the root `package.json`
+approves that script under `allowScripts`. If video frames fail with `EFTYPE`, the download was
+interrupted: delete `node_modules/ffmpeg-static/ffmpeg.exe` (or `ffmpeg`) and run
 `node node_modules/ffmpeg-static/install.js`.
 
 ## Environment variables
@@ -485,12 +614,12 @@ interrupted — delete `node_modules/ffmpeg-static/ffmpeg.exe` (or `ffmpeg`) and
 ## Security
 
 - `SUPABASE_SECRET_KEY` and `NEBIUS_API_KEY` are read only by the backend. The browser never
-  calls Nebius, and only ever holds the Supabase publishable key.
-- Anything prefixed `VITE_` is compiled into the public bundle; only the three variables above
+  calls Nebius, and the only key it ever holds is the Supabase publishable key.
+- Anything prefixed `VITE_` is compiled into the public bundle. Only the three variables above
   belong there.
-- `.env` files are git-ignored; only value-free `.env.example` files are committed.
+- `.env` files are git-ignored, and only value-free `.env.example` files are committed.
 - Row Level Security is enabled on every table. Signed-in users can read only their own work
-  orders' rows; there are no client-side write policies, so evidence, decisions and the audit
+  orders' rows. There are no client-side write policies, so evidence, decisions and the audit
   trail can only be written by the backend.
 - The API reports configuration as modes and booleans, never values, and does not log keys.
 - Uploads are size-limited, type-checked against the declared evidence kind, and hashed
@@ -503,9 +632,3 @@ dashboard. Set `CORS_ORIGIN` to the Vercel URL.
 
 **Frontend → Vercel.** Import the repo, set the Root Directory to `frontend` (framework preset:
 Vite), and set the three `VITE_*` variables.
-
-## Not built yet
-
-- Audio transcription (audio and video soundtracks are "attached but not inspected") and OCR for
-  scanned PDFs. Only NVIDIA Nemotron via Nebius may be used, so both wait for a Nemotron model
-  that accepts audio or page images to be confirmed on Token Factory

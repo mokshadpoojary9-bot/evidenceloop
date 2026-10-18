@@ -33,7 +33,7 @@ const schema = z.object({
   ),
   NEBIUS_MODEL: optionalString,
 
-  // DEV ONLY. Enables the deterministic fixture that stands in for AI while no Nebius key exists.
+  // DEV ONLY. Enables the deterministic fixture that stands in for AI when Nebius is not configured.
   DEV_FIXTURE_AI: flag,
 });
 

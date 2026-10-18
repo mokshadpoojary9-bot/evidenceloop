@@ -10,9 +10,10 @@ import type { AiProvider, AssessInput, DraftInput } from './provider.js';
 /**
  * Production AI provider: NVIDIA Nemotron served by Nebius Token Factory.
  *
- * STATUS: written against Nebius's OpenAI-compatible chat API but NOT yet run
- * against the live service — no API key is available. It is only constructed
- * when NEBIUS_API_KEY and NEBIUS_MODEL are both set (see ai/index.ts).
+ * Uses Nebius's OpenAI-compatible chat API; verified live with
+ * nvidia/Nemotron-3.5-Super-VL (npm run check:nebius). It is only constructed
+ * when NEBIUS_API_KEY and NEBIUS_MODEL are both set (see ai/index.ts), and each
+ * backend proves its own connection with a startup live test (ai/liveCheck.ts).
  *
  * What the model can inspect:
  *   - images          → sent inline (needs a vision-capable Nemotron model)
