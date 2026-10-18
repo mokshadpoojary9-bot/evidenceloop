@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
@@ -9,7 +9,6 @@ import { currentUser } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
 import type { Db } from '../stores/db.js';
 import type { FileStore } from '../stores/fileStore.js';
-import { extractPdfText } from '../media/pdfText.js';
 import { renderWorkOrderReport } from '../reports/workOrderReport.js';
 import {
   getAccessibleWorkOrder,
@@ -17,6 +16,7 @@ import {
   getWorkOrderDetail,
   listWorkOrderSummaries,
 } from '../stores/workOrders.js';
+import { attachEvidence, createWorkOrder, deleteWorkOrder, safeFileName } from '../stores/writes.js';
 import { TEMPLATES } from '../templates.js';
 import {
   CANNOT_VERIFY,
@@ -89,8 +89,6 @@ const idParam = (value: unknown) => {
   return id.data;
 };
 
-const safeFileName = (name: string) => name.replace(/[^\w.-]+/g, '_').slice(-120) || 'file';
-
 /** While a reviewer is deciding, the evidence and checklist they are looking at must not change. */
 function assertNotInReview(workOrder: WorkOrder) {
   if (workOrder.status === 'IN_REVIEW') {
@@ -132,46 +130,12 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
       throw new HttpError(400, 'A work order needs at least one mandatory requirement');
     }
 
-    const timestamp = now();
-    const workOrder: WorkOrder = {
-      id: randomUUID(),
-      ownerId: user.id,
+    const workOrder = await createWorkOrder(db, user, {
       title: input.title,
       description: input.description,
       location: input.location,
       templateId: template?.id ?? null,
-      status: 'AWAITING_EVIDENCE',
-      simulated: false,
-      archivedAt: null,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
-    // Build the checklist. Nothing is proven until evidence says so.
-    const requirements: Requirement[] = source.map((requirement, index) => ({
-      id: randomUUID(),
-      workOrderId: workOrder.id,
-      position: index + 1,
-      ...requirement,
-      status: 'NOT_PROVEN',
-      currentAssessmentId: null,
-      updatedAt: timestamp,
-    }));
-
-    await db.insert('work_orders', workOrder);
-    await db.insert('requirements', requirements);
-    await audit(db, {
-      workOrderId: workOrder.id,
-      actor: `user:${user.id}`,
-      type: 'WORK_ORDER_CREATED',
-      summary: `Work order created: "${workOrder.title}"`,
-      data: { templateId: workOrder.templateId },
-    });
-    await audit(db, {
-      workOrderId: workOrder.id,
-      actor: 'system',
-      type: 'CHECKLIST_BUILT',
-      summary: `Checklist built with ${requirements.length} requirement(s) (${requirements.filter((r) => r.mandatory).length} mandatory). ${CANNOT_VERIFY}`,
-      data: { requirements: requirements.map((r) => ({ id: r.id, title: r.title, mandatory: r.mandatory })) },
+      requirements: source,
     });
 
     res.status(201).json(await getWorkOrderDetail(db, files, workOrder, currentUser(res)));
@@ -240,13 +204,7 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
     const user = currentUser(res);
     const workOrder = await getManagedWorkOrder(db, idParam(req.params.id), user);
     if (workOrder.status === 'ANALYZING') throw new HttpError(409, 'Wait for the verification run to finish');
-    const evidence = await db.list('evidence', { workOrderId: workOrder.id });
-    await files.remove(evidence.map((item) => item.storagePath));
-    // Children first, so the local store matches Postgres' ON DELETE CASCADE.
-    for (const table of ['audit_events', 'reviews', 'evidence_requests', 'assessments', 'analysis_runs', 'evidence', 'requirements'] as const) {
-      await db.delete(table, { workOrderId: workOrder.id });
-    }
-    await db.delete('work_orders', { id: workOrder.id });
+    await deleteWorkOrder(db, files, workOrder.id);
     console.log(`Work order ${workOrder.id} deleted by user ${user.id}`);
     res.status(204).end();
   });
@@ -349,75 +307,15 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
       );
     }
 
-    // Link the upload to the request it answers: the one named, or an open one for this kind.
-    const openRequests = await db.list('evidence_requests', {
-      workOrderId: workOrder.id,
-      status: 'OPEN',
-    });
-    const request = fields.requestId
-      ? openRequests.find((candidate) => candidate.id === fields.requestId)
-      : openRequests.find((candidate) => candidate.kind === fields.kind);
-    if (fields.requestId && !request) throw new HttpError(400, 'That evidence request is not open');
-    if (request && request.kind !== fields.kind) {
-      throw new HttpError(
-        400,
-        `That request asks for a ${EVIDENCE_KIND_LABELS[request.kind].toLowerCase()}`,
-      );
-    }
-
-    const id = randomUUID();
     // multer decodes the filename as latin1; restore UTF-8 names.
-    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    const evidence: Evidence = {
-      id,
-      workOrderId: workOrder.id,
+    const evidence = await attachEvidence(db, files, workOrder, user, {
       kind: fields.kind,
-      fileName: originalName,
-      mimeType: file.mimetype,
-      sizeBytes: file.size,
-      sha256: createHash('sha256').update(file.buffer).digest('hex'),
-      storagePath: `${workOrder.id}/${id}/${safeFileName(originalName)}`,
       note: fields.note,
-      requestId: request?.id ?? null,
-      uploadedBy: user.id,
-      createdAt: now(),
-    };
-
-    // A PDF without a text layer (a scan) is attached but the AI cannot read it; record that up front.
-    const pdf = evidence.mimeType === 'application/pdf' ? await extractPdfText(file.buffer, 1) : null;
-
-    await files.put(evidence.storagePath, file.buffer, file.mimetype);
-    await db.insert('evidence', evidence);
-    await audit(db, {
-      workOrderId: workOrder.id,
-      actor: `user:${user.id}`,
-      type: 'EVIDENCE_UPLOADED',
-      summary: `Evidence uploaded: ${EVIDENCE_KIND_LABELS[evidence.kind]} "${evidence.fileName}"`,
-      data: {
-        evidenceId: id,
-        kind: evidence.kind,
-        mimeType: evidence.mimeType,
-        sizeBytes: evidence.sizeBytes,
-        sha256: evidence.sha256,
-        requestId: evidence.requestId,
-        ...(pdf ? { pdf: { pages: pdf.pages, textLayer: pdf.ok } } : {}),
-      },
+      requestId: fields.requestId,
+      fileName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+      mimeType: file.mimetype,
+      data: file.buffer,
     });
-
-    if (request) {
-      await db.update('evidence_requests', request.id, {
-        status: 'FULFILLED',
-        fulfilledByEvidenceId: id,
-        updatedAt: now(),
-      });
-      await audit(db, {
-        workOrderId: workOrder.id,
-        actor: `user:${user.id}`,
-        type: 'EVIDENCE_REQUEST_FULFILLED',
-        summary: `Evidence request answered with "${evidence.fileName}". Whether it is sufficient is decided by re-analysis.`,
-        data: { requestId: request.id, evidenceId: id },
-      });
-    }
 
     // New evidence triggers re-evaluation once a first verification run has happened.
     const reanalysis = await triggerReanalysis(workOrder, evidence, user.id);

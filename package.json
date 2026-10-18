@@ -19,7 +19,8 @@
     "lint": "eslint .",
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
     "check:supabase": "npm run check:supabase -w backend",
-    "check:nebius": "npm run check:nebius -w backend"
+    "check:nebius": "npm run check:nebius -w backend",
+    "seed:demo": "npm run seed:demo -w backend --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

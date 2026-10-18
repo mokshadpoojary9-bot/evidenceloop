@@ -1,0 +1,345 @@
+<!doctype html>
+<!--
+  EvidenceLoop demo evidence: hand-drawn SVG scenes rendered to images by make-demo-files.mjs.
+  Open with a hash to see one scene, e.g. scenes.html#room204-after or #room204-test-3.
+  Everything here is original and fictional (models, brands, rooms).
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+  svg { display: block; width: 1280px; height: 960px; }
+  text { font-family: 'Segoe UI', Arial, sans-serif; }
+  .mono { font-family: Consolas, 'Courier New', monospace; }
+</style>
+</head>
+<body>
+<svg id="scene" viewBox="0 0 1280 960" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+const W = 1280, H = 960;
+
+const defs = `
+<defs>
+  <filter id="grain" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n"/>
+    <feColorMatrix type="saturate" values="0"/>
+    <feComponentTransfer><feFuncA type="table" tableValues="0 0.10"/></feComponentTransfer>
+    <feComposite in2="SourceGraphic" operator="over"/>
+  </filter>
+  <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6"/></filter>
+  <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="40"/></filter>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-opacity="0.35"/></filter>
+  <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#e9e3d6"/><stop offset="1" stop-color="#cfc7b6"/>
+  </linearGradient>
+  <linearGradient id="wallCool" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#dfe4e6"/><stop offset="1" stop-color="#b9c1c5"/>
+  </linearGradient>
+  <linearGradient id="ceiling" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#f1f0ec"/><stop offset="1" stop-color="#d7d5cf"/>
+  </linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#8d8a84"/><stop offset="1" stop-color="#6c6964"/>
+  </linearGradient>
+  <linearGradient id="unitNew" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fbfbfa"/><stop offset="1" stop-color="#dcdcd8"/>
+  </linearGradient>
+  <linearGradient id="unitOld" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#e6dcb8"/><stop offset="1" stop-color="#bfb28a"/>
+  </linearGradient>
+  <linearGradient id="diffuserOff" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#e8ecef"/><stop offset="1" stop-color="#c3c9ce"/>
+  </linearGradient>
+  <linearGradient id="diffuserOn" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#fff6d8"/>
+  </linearGradient>
+  <linearGradient id="red" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#8f1010"/><stop offset="0.45" stop-color="#d42a22"/><stop offset="1" stop-color="#7a0c0c"/>
+  </linearGradient>
+  <linearGradient id="metal" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#2a2d31"/><stop offset="0.5" stop-color="#55595f"/><stop offset="1" stop-color="#25282c"/>
+  </linearGradient>
+  <linearGradient id="brass" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#d9d9d9"/><stop offset="1" stop-color="#8d8d8d"/>
+  </linearGradient>
+  <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="0.6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+  </radialGradient>
+  <radialGradient id="lightPool" cx="0.5" cy="0" r="0.8">
+    <stop offset="0" stop-color="#fffbe6" stop-opacity="0.85"/><stop offset="1" stop-color="#fffbe6" stop-opacity="0"/>
+  </radialGradient>
+</defs>`;
+
+const screw = (x, y, r = 9) => `
+  <circle cx="${x}" cy="${y}" r="${r}" fill="url(#brass)" stroke="#555" stroke-width="1.5"/>
+  <line x1="${x - r * 0.6}" y1="${y}" x2="${x + r * 0.6}" y2="${y}" stroke="#444" stroke-width="2"/>
+  <line x1="${x}" y1="${y - r * 0.6}" x2="${x}" y2="${y + r * 0.6}" stroke="#444" stroke-width="2"/>`;
+
+const stamp = (text) => `
+  <g>
+    <rect x="24" y="${H - 64}" width="${text.length * 11.2 + 32}" height="40" rx="6" fill="#000" opacity="0.55"/>
+    <text x="40" y="${H - 37}" class="mono" font-size="19" fill="#fff">${text}</text>
+  </g>`;
+
+const finish = (body, { cool = false } = {}) => `${defs}
+  <rect width="${W}" height="${H}" fill="url(#${cool ? 'wallCool' : 'wall'})"/>
+  ${body}
+  <rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.9" style="mix-blend-mode:multiply"/>
+  <rect width="${W}" height="${H}" fill="url(#vignette)"/>`;
+
+// ---------- Emergency light (Room 204) ----------
+
+/** Wall-mounted emergency light unit. `scale` 1 = 360 px wide. */
+function emergencyLight(cx, cy, scale, { old = false, lit = false, led = 'green', label = true, screws = false, pressing = false } = {}) {
+  const w = 360 * scale, h = 120 * scale, x = cx - w / 2, y = cy - h / 2;
+  const r = 14 * scale;
+  const ledColor = led === 'green' ? '#25d366' : led === 'red' ? '#ff3b30' : '#3b3b3b';
+  const ledGlow = led === 'off' ? '' : `<circle cx="${x + w - 46 * scale}" cy="${y + h - 22 * scale}" r="${16 * scale}" fill="${ledColor}" opacity="0.45" filter="url(#soft)"/>`;
+  return `
+  <g filter="url(#shadow)">
+    ${lit ? `<ellipse cx="${cx}" cy="${cy + h * 0.6}" rx="${w * 1.6}" ry="${h * 3.2}" fill="url(#lightPool)"/>` : ''}
+    <rect x="${x - 10 * scale}" y="${y - 10 * scale}" width="${w + 20 * scale}" height="${h + 20 * scale}" rx="${r + 4}" fill="${old ? '#b9ad86' : '#e9e9e6'}"/>
+    ${screws ? [[x + 4 * scale, y + 2 * scale], [x + w - 4 * scale, y + 2 * scale], [x + 4 * scale, y + h - 2 * scale], [x + w - 4 * scale, y + h - 2 * scale]].map(([sx, sy]) => screw(sx, sy, 9 * scale)).join('') : ''}
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="url(#${old ? 'unitOld' : 'unitNew'})" stroke="${old ? '#9c8f68' : '#c9c9c4'}" stroke-width="${2 * scale}"/>
+    <rect x="${x + 22 * scale}" y="${y + 18 * scale}" width="${w - 120 * scale}" height="${h - 50 * scale}" rx="${8 * scale}" fill="url(#${lit ? 'diffuserOn' : 'diffuserOff'})" stroke="${old ? '#a1946a' : '#b8bec3'}" stroke-width="${1.5 * scale}"/>
+    ${old ? `<path d="M ${x + 70 * scale} ${y + 22 * scale} l ${30 * scale} ${28 * scale} l ${-12 * scale} ${20 * scale}" stroke="#7d7255" stroke-width="${2 * scale}" fill="none"/>` : ''}
+    ${[0, 1, 2, 3, 4, 5].map((i) => `<rect x="${x + (36 + i * 34) * scale}" y="${y + 30 * scale}" width="${18 * scale}" height="${h - 74 * scale}" rx="${4 * scale}" fill="${lit ? '#fffdf2' : old ? '#cfc6a5' : '#d6dbe0'}"/>`).join('')}
+    ${ledGlow}
+    <circle cx="${x + w - 46 * scale}" cy="${y + h - 22 * scale}" r="${6 * scale}" fill="${ledColor}" stroke="#222" stroke-width="${1 * scale}"/>
+    <text x="${x + w - 46 * scale}" y="${y + h - 38 * scale}" font-size="${10 * scale}" text-anchor="middle" fill="#555">${old ? 'FAULT' : 'CHARGE'}</text>
+    <rect x="${x + w - 76 * scale}" y="${y + 18 * scale}" width="${60 * scale}" height="${30 * scale}" rx="${6 * scale}" fill="${pressing ? '#9aa0a6' : '#c7ccd1'}" stroke="#8a9096" stroke-width="${1.5 * scale}"/>
+    <text x="${x + w - 46 * scale}" y="${y + 38 * scale}" font-size="${12 * scale}" font-weight="700" text-anchor="middle" fill="#3a3f44">TEST</text>
+    ${label ? `<g>
+      <rect x="${x + 22 * scale}" y="${y + h - 28 * scale}" width="${w - 120 * scale}" height="${20 * scale}" fill="${old ? '#d9cfa9' : '#ffffff'}" stroke="${old ? '#a99e78' : '#9aa0a6'}" stroke-width="${1 * scale}"/>
+      <text x="${x + 30 * scale}" y="${y + h - 13 * scale}" font-size="${12 * scale}" font-weight="700" fill="${old ? '#7a6f52' : '#1d2329'}">${old ? 'EL-100  · 1 h NM' : 'Lumora EL-2040 · 3 h maintained · LED'}</text>
+    </g>` : ''}
+    ${lit ? `<rect x="${x + 22 * scale}" y="${y + 18 * scale}" width="${w - 120 * scale}" height="${h - 50 * scale}" rx="${8 * scale}" fill="#fff7cf" opacity="0.9" filter="url(#glow)"/>` : ''}
+  </g>`;
+}
+
+function roomSign(x, y, text, scale = 1) {
+  return `
+  <g filter="url(#shadow)">
+    <rect x="${x}" y="${y}" width="${200 * scale}" height="${110 * scale}" rx="${10 * scale}" fill="#1f3a5f"/>
+    <text x="${x + 100 * scale}" y="${y + 40 * scale}" font-size="${22 * scale}" text-anchor="middle" fill="#cfe0f5" letter-spacing="${3 * scale}">ROOM</text>
+    <text x="${x + 100 * scale}" y="${y + 90 * scale}" font-size="${52 * scale}" font-weight="700" text-anchor="middle" fill="#fff">${text}</text>
+  </g>`;
+}
+
+function doorway(x, y, w, h) {
+  return `
+  <rect x="${x - 18}" y="${y - 18}" width="${w + 36}" height="${h + 18}" fill="#8a7a63"/>
+  <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#a88f6c"/>
+  <rect x="${x + 30}" y="${y + 40}" width="${w - 60}" height="${h * 0.38}" fill="#9a8261" stroke="#7e6a4f" stroke-width="3"/>
+  <rect x="${x + 30}" y="${y + 60 + h * 0.38}" width="${w - 60}" height="${h * 0.38}" fill="#9a8261" stroke="#7e6a4f" stroke-width="3"/>
+  <rect x="${x + w - 46}" y="${y + h * 0.52}" width="14" height="60" rx="5" fill="#c9c9c9"/>`;
+}
+
+function room204Wide({ old }) {
+  return finish(`
+    <rect y="820" width="${W}" height="140" fill="url(#floor)"/>
+    <rect y="808" width="${W}" height="14" fill="#5d5a55"/>
+    ${doorway(430, 330, 420, 490)}
+    ${roomSign(900, 420, '204', 1)}
+    ${emergencyLight(640, 200, 1, { old, led: old ? 'red' : 'green' })}
+    <rect x="626" y="40" width="28" height="94" fill="#bdb6a6"/>
+  `) + stamp(old ? 'WO Room 204 · BEFORE · 2026-10-18 09:12' : 'WO Room 204 · AFTER · 2026-10-18 10:03');
+}
+
+function room204Closeup() {
+  return finish(`
+    <rect x="590" y="0" width="64" height="300" fill="#a9a293"/>
+    <rect x="574" y="270" width="96" height="44" rx="8" fill="#3d4247"/>
+    <text x="700" y="296" font-size="20" fill="#3a3a3a">20 mm conduit + gland</text>
+    ${emergencyLight(640, 500, 2.6, { led: 'green', screws: true })}
+  `) + stamp('WO Room 204 · CLOSE-UP fixings + supply entry · 10:05');
+}
+
+/** Functional test video frame at second `t` (0–7). */
+function room204Test(t) {
+  const pressing = t === 3;
+  const lit = t >= 3;
+  const finger = pressing || t === 4
+    ? `<path d="M ${1060} ${980} C 1040 760, 1000 560, ${960} ${t === 3 ? 418 : 330} L ${1010} ${t === 3 ? 410 : 322} C 1070 560, 1140 760, 1180 980 Z" fill="#c99a7b" stroke="#a5765a" stroke-width="3"/>`
+    : '';
+  const darker = lit ? `<rect width="${W}" height="${H}" fill="#0b0e12" opacity="0.62"/>` : '';
+  const beam = lit
+    ? `<ellipse cx="560" cy="560" rx="620" ry="420" fill="#fff4c2" opacity="0.55" filter="url(#glow)"/>
+       <ellipse cx="560" cy="420" rx="300" ry="120" fill="#fffbe8" opacity="0.9" filter="url(#glow)"/>`
+    : '';
+  return finish(`
+    ${darker}
+    ${beam}
+    ${emergencyLight(640, 420, 2.2, { led: lit ? 'off' : 'green', lit, pressing })}
+    ${finger}
+    <rect x="24" y="36" width="${W - 48}" height="100" rx="8" fill="#000" opacity="0.55"/>
+    <circle cx="1150" cy="70" r="12" fill="#ff3b30"/>
+    <text x="1060" y="80" class="mono" font-size="26" fill="#fff">REC</text>
+    <text x="40" y="80" class="mono" font-size="24" fill="#fff">00:00:0${t}</text>
+    <text x="40" y="118" class="mono" font-size="20" fill="#e8e8e8">${lit ? 'TEST pressed — supply interrupted, unit on battery' : 'Mains healthy — charge indicator green'}</text>
+  `) + stamp('WO Room 204 · FUNCTIONAL TEST · 10:07');
+}
+
+// ---------- Fire extinguisher bracket (Corridor B) ----------
+
+function corridorSign(x, y) {
+  return `
+  <g filter="url(#shadow)">
+    <rect x="${x}" y="${y}" width="300" height="80" rx="8" fill="#14532d"/>
+    <text x="${x + 150}" y="${y + 52}" font-size="36" font-weight="700" text-anchor="middle" fill="#fff" letter-spacing="2">CORRIDOR B</text>
+  </g>`;
+}
+
+function extinguisherSign(x, y) {
+  return `
+  <g filter="url(#shadow)">
+    <rect x="${x}" y="${y}" width="220" height="150" rx="6" fill="#c8102e"/>
+    <rect x="${x + 70}" y="${y + 18}" width="40" height="80" rx="14" fill="#fff"/>
+    <rect x="${x + 82}" y="${y + 6}" width="16" height="16" fill="#fff"/>
+    <path d="M ${x + 98} ${y + 12} L ${x + 140} ${y + 30}" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+    <text x="${x + 110}" y="${y + 132}" font-size="20" font-weight="700" text-anchor="middle" fill="#fff">FIRE EXTINGUISHER</text>
+  </g>`;
+}
+
+function extinguisher(cx, top, scale = 1) {
+  const w = 120 * scale, h = 330 * scale, x = cx - w / 2;
+  return `
+  <g filter="url(#shadow)">
+    <rect x="${x}" y="${top + 50 * scale}" width="${w}" height="${h}" rx="${50 * scale}" fill="url(#red)"/>
+    <rect x="${x + 18 * scale}" y="${top + 150 * scale}" width="${w - 36 * scale}" height="${120 * scale}" rx="${6 * scale}" fill="#f6f1e7"/>
+    <text x="${cx}" y="${top + 190 * scale}" font-size="${16 * scale}" font-weight="700" text-anchor="middle" fill="#8f1010">ABC</text>
+    <text x="${cx}" y="${top + 214 * scale}" font-size="${13 * scale}" text-anchor="middle" fill="#333">6 kg powder</text>
+    <rect x="${cx - 18 * scale}" y="${top + 18 * scale}" width="${36 * scale}" height="${40 * scale}" fill="#2a2a2a"/>
+    <path d="M ${cx - 10 * scale} ${top + 20 * scale} L ${cx - 70 * scale} ${top} " stroke="#1d1d1d" stroke-width="${12 * scale}" stroke-linecap="round"/>
+    <path d="M ${cx + 14 * scale} ${top + 30 * scale} C ${cx + 90 * scale} ${top + 60 * scale}, ${cx + 90 * scale} ${top + 200 * scale}, ${cx + 64 * scale} ${top + 260 * scale}" stroke="#111" stroke-width="${10 * scale}" fill="none"/>
+    <circle cx="${cx + 4 * scale}" cy="${top + 6 * scale}" r="${16 * scale}" fill="#e7e7e7" stroke="#777"/>
+  </g>`;
+}
+
+function bracket(cx, y, scale = 1, { label = false } = {}) {
+  const w = 150 * scale;
+  return `
+  <g>
+    <rect x="${cx - 26 * scale}" y="${y}" width="${52 * scale}" height="${330 * scale}" rx="${6 * scale}" fill="url(#metal)"/>
+    <rect x="${cx - w / 2}" y="${y + 110 * scale}" width="${w}" height="${26 * scale}" rx="${6 * scale}" fill="#23262a"/>
+    <rect x="${cx - w / 2}" y="${y + 286 * scale}" width="${w}" height="${30 * scale}" rx="${6 * scale}" fill="#23262a"/>
+    ${screw(cx, y + 26 * scale, 10 * scale)}${screw(cx, y + 74 * scale, 10 * scale)}${screw(cx, y + 230 * scale, 10 * scale)}${screw(cx, y + 312 * scale, 10 * scale)}
+    ${label ? `<rect x="${cx - 40 * scale}" y="${y + 150 * scale}" width="${80 * scale}" height="${60 * scale}" rx="${4 * scale}" fill="#f2f2f2"/>
+      <text x="${cx}" y="${y + 172 * scale}" font-size="${11 * scale}" font-weight="700" text-anchor="middle" fill="#111">Brackwell</text>
+      <text x="${cx}" y="${y + 194 * scale}" font-size="${15 * scale}" font-weight="700" text-anchor="middle" fill="#111">BX-6</text>` : ''}
+  </g>`;
+}
+
+function corridorWide({ after }) {
+  return finish(`
+    <rect y="800" width="${W}" height="160" fill="url(#floor)"/>
+    <rect y="790" width="${W}" height="14" fill="#4b4f52"/>
+    <rect x="0" y="560" width="${W}" height="12" fill="#9aa4a8"/>
+    ${corridorSign(120, 120)}
+    ${after ? `${extinguisherSign(530, 110)}${bracket(640, 330, 1)}${extinguisher(640, 300, 1)}` : `
+      <rect x="560" y="300" width="160" height="380" fill="none" stroke="#e0b100" stroke-width="8" stroke-dasharray="26 16"/>
+      <text x="640" y="290" font-size="22" text-anchor="middle" fill="#6b5a00">MARKED POSITION</text>
+      ${[[640, 330], [640, 380], [640, 540], [640, 620]].map(([x, y]) => `<text x="${x}" y="${y}" font-size="30" text-anchor="middle" fill="#555">×</text>`).join('')}
+      ${extinguisher(1000, 470, 0.95)}`}
+  `, { cool: true }) + stamp(after ? 'WO Corridor B · AFTER · 2026-10-17 14:31' : 'WO Corridor B · BEFORE · 2026-10-17 13:58');
+}
+
+function corridorCloseup() {
+  // Tape measure from the floor: 1 m mark at y=700, scale 300 px per metre upward.
+  const ticks = [];
+  for (let cm = 80; cm <= 140; cm += 5) {
+    const y = 700 - (cm - 100) * 6;
+    ticks.push(`<line x1="250" y1="${y}" x2="${cm % 10 === 0 ? 300 : 280}" y2="${y}" stroke="#111" stroke-width="3"/>`);
+    if (cm % 10 === 0) ticks.push(`<text x="306" y="${y + 8}" font-size="24" font-weight="700" fill="#111">${(cm / 100).toFixed(1)} m</text>`);
+  }
+  return finish(`
+    <rect x="236" y="0" width="120" height="${H}" fill="#f2c94c"/>
+    ${ticks.join('')}
+    <line x1="350" y1="640" x2="800" y2="640" stroke="#1f6feb" stroke-width="4" stroke-dasharray="14 10"/>
+    <text x="420" y="626" font-size="24" font-weight="700" fill="#1f6feb">handle at 1.10 m</text>
+    ${bracket(860, 170, 2.0, { label: true })}
+    <text x="1030" y="410" font-size="22" fill="#333">upper cradle</text>
+    <text x="1030" y="790" font-size="22" fill="#333">base cradle</text>
+  `, { cool: true }) + stamp('WO Corridor B · CLOSE-UP fixings + height · 14:36');
+}
+
+// ---------- Ceiling fan (Lab 3) ----------
+
+function fan(cx, cy, scale, { old = false, model = '' } = {}) {
+  const blade = (angle) => `
+    <g transform="rotate(${angle} ${cx} ${cy})">
+      <path d="M ${cx + 40 * scale} ${cy - 22 * scale} L ${cx + 360 * scale} ${cy - 46 * scale} Q ${cx + 390 * scale} ${cy} ${cx + 360 * scale} ${cy + 46 * scale} L ${cx + 40 * scale} ${cy + 22 * scale} Z"
+        fill="${old ? '#7a5a3a' : '#f3f3f1'}" stroke="${old ? '#5b412a' : '#bdbdb8'}" stroke-width="${3 * scale}"/>
+    </g>`;
+  const angles = old ? [10, 100, 190, 280] : [30, 150, 270];
+  return `
+  <g filter="url(#shadow)">
+    ${angles.map(blade).join('')}
+    <circle cx="${cx}" cy="${cy}" r="${88 * scale}" fill="${old ? '#9c8b6e' : '#e8e8e5'}" stroke="${old ? '#6e604a' : '#b5b5b0'}" stroke-width="${4 * scale}"/>
+    <circle cx="${cx}" cy="${cy}" r="${40 * scale}" fill="${old ? '#7d6e55' : '#d3d3cf'}"/>
+    ${model ? `<rect x="${cx - 78 * scale}" y="${cy + 46 * scale}" width="${156 * scale}" height="${30 * scale}" fill="#fff" stroke="#888"/>
+      <text x="${cx}" y="${cy + 68 * scale}" font-size="${17 * scale}" font-weight="700" text-anchor="middle" fill="#111">${model}</text>` : ''}
+  </g>`;
+}
+
+function labWide({ old }) {
+  // Looking up: ceiling fills most of the frame, a strip of wall with the lab sign at the bottom.
+  return `${defs}
+    <rect width="${W}" height="${H}" fill="url(#ceiling)"/>
+    ${[0, 1, 2, 3, 4].map((i) => `<line x1="${i * 320}" y1="0" x2="${i * 320}" y2="760" stroke="#c9c7c0" stroke-width="3"/>`).join('')}
+    <line x1="0" y1="380" x2="${W}" y2="380" stroke="#c9c7c0" stroke-width="3"/>
+    <rect y="760" width="${W}" height="200" fill="url(#wall)"/>
+    <rect y="752" width="${W}" height="14" fill="#a9a395"/>
+    <g filter="url(#shadow)">
+      <rect x="880" y="800" width="230" height="100" rx="8" fill="#5b2a86"/>
+      <text x="995" y="866" font-size="46" font-weight="700" text-anchor="middle" fill="#fff" letter-spacing="3">LAB 3</text>
+    </g>
+    ${fan(600, 390, 1, { old, model: old ? '' : 'Aerivo CF-48' })}
+    <rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.9" style="mix-blend-mode:multiply"/>
+    <rect width="${W}" height="${H}" fill="url(#vignette)"/>
+  ` + stamp(old ? 'WO Lab 3 · BEFORE · 2026-10-16 11:20' : 'WO Lab 3 · AFTER · 2026-10-16 12:44');
+}
+
+function labCloseup() {
+  return `${defs}
+    <rect width="${W}" height="${H}" fill="url(#ceiling)"/>
+    <g filter="url(#shadow)">
+      <rect x="390" y="0" width="500" height="80" fill="#e2e1dc"/>
+      <path d="M 430 80 L 850 80 L 790 300 L 490 300 Z" fill="#ececea" stroke="#b9b9b4" stroke-width="4"/>
+      ${screw(470, 40, 14)}${screw(810, 40, 14)}
+      <rect x="610" y="300" width="60" height="160" fill="#d9d9d6"/>
+      <rect x="440" y="460" width="400" height="240" rx="40" fill="#e8e8e5" stroke="#b5b5b0" stroke-width="4"/>
+      <rect x="500" y="560" width="280" height="96" fill="#fff" stroke="#888" stroke-width="3"/>
+      <text x="640" y="600" font-size="34" font-weight="700" text-anchor="middle" fill="#111">Aerivo CF-48</text>
+      <text x="640" y="638" font-size="22" text-anchor="middle" fill="#333">48 in · 230 V · 60 W</text>
+    </g>
+    <path d="M 330 130 C 360 170, 400 180, 450 150" stroke="#2e7d32" stroke-width="10" fill="none"/>
+    <path d="M 330 150 C 360 200, 410 210, 460 175" stroke="#1565c0" stroke-width="10" fill="none"/>
+    <path d="M 330 170 C 360 230, 420 240, 470 200" stroke="#6d4c41" stroke-width="10" fill="none"/>
+    <rect x="290" y="110" width="60" height="90" rx="10" fill="#f5f5f5" stroke="#999" stroke-width="3"/>
+    <text x="320" y="240" font-size="20" text-anchor="middle" fill="#444">terminal block</text>
+    <rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.9" style="mix-blend-mode:multiply"/>
+    <rect width="${W}" height="${H}" fill="url(#vignette)"/>
+  ` + stamp('WO Lab 3 · CLOSE-UP canopy, fixings, label · 12:47');
+}
+
+const scenes = {
+  'room204-before': () => room204Wide({ old: true }),
+  'room204-after': () => room204Wide({ old: false }),
+  'room204-closeup': room204Closeup,
+  'corridorb-before': () => corridorWide({ after: false }),
+  'corridorb-after': () => corridorWide({ after: true }),
+  'corridorb-closeup': corridorCloseup,
+  'lab3-before': () => labWide({ old: true }),
+  'lab3-after': () => labWide({ old: false }),
+  'lab3-closeup': labCloseup,
+};
+for (let t = 0; t < 8; t++) scenes[`room204-test-${t}`] = () => room204Test(t);
+
+const name = location.hash.slice(1) || 'room204-after';
+document.getElementById('scene').innerHTML = (scenes[name] ?? scenes['room204-after'])();
+document.title = name;
+</script>
+</body>
+</html>

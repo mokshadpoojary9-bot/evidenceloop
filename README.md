@@ -11,6 +11,15 @@ evidence arrives it re-analyzes the requirements that evidence affects.
 > EvidenceLoop assists verification. It does not replace qualified inspectors or certification,
 > and it does not guarantee physical safety.
 
+| Landing (3D hero) | Dashboard |
+| --- | --- |
+| ![Landing page with the 3D evidence loop](docs/screenshots/landing.png) | ![Dashboard with status counts, open requests and activity](docs/screenshots/dashboard.png) |
+| **Work order with the 3D verification graph** | **Evidence viewer** |
+| ![Room 204 work order: score, provenance and 3D graph](docs/screenshots/work-order.png) | ![Evidence viewer with the observations that cite the file](docs/screenshots/evidence-viewer.png) |
+
+*Screenshots show the seeded demo data (`npm run seed:demo`) in local DEV mode, so every result
+is labelled "Simulated · dev fixture". For the live demo with real Nemotron, see [DEMO.md](DEMO.md).*
+
 ## AI provider — current status
 
 Production AI is **NVIDIA Nemotron served by Nebius Token Factory**. It is the only inference
@@ -98,6 +107,16 @@ With the DEV fixture enabled:
 5. Upload a video against that request → only the affected requirements are re-analyzed → verified.
 
 Adding `#contradict` to an upload's note makes the fixture simulate a contradiction (DEV ONLY).
+
+### Seeded demo data
+
+`npm run seed:demo` creates three work orders from the sample evidence in [`demo/`](demo/SOURCES.md):
+Room 204 (4 of 6 proven, functional-test video requested), Corridor B (VERIFIED, with a full
+request → answer → re-analysis loop) and Lab 3 (CONTRADICTED: wrong fan model). It uses the same
+writes and verification engine as the API with the DEV fixture, so every result is labelled
+simulated. No Nebius call is made. It is safe to run twice. `npm run seed:demo -- --reset` removes
+only those three. In Supabase mode, pass the owning technician: `-- --owner you@example.com` (or set
+`DEMO_OWNER_EMAIL`). In local mode, stop the API first. The 2-minute click path is in [DEMO.md](DEMO.md).
 
 ## Roles and reviewer sign-off
 
@@ -405,6 +424,7 @@ With no Supabase credentials the backend runs in **local mode**: data and upload
 | `npm run check` | Lint, typecheck, test and build — run before every commit |
 | `npm run build` | Build both workspaces |
 | `npm run check:supabase` | Checks the Supabase key, auth settings (email confirmation), tables and columns, RLS and policies, Realtime, the review trigger, and that the storage bucket exists and is private |
+| `npm run seed:demo` | Seeds the three demo work orders (DEV fixture, labelled simulated). `-- --reset` removes only them. `-- --owner <email>` in Supabase mode |
 | `npm run check:nebius` | Live Nebius test: prints configured yes/no, model id, text OK/FAIL, image (vision) OK/FAIL and latency. Never prints the key |
 
 ### Connecting Supabase

@@ -92,6 +92,8 @@ the emergency light functional test."; uploading it re-analyzes the affected req
 - `npm run dev` — API on :4000, dashboard on :5173. `npm run check` — everything.
 - `npm run check:nebius` — live Nebius test (text + image). The UI says "connected" only after the
   backend's equivalent startup test passes.
+- `npm run seed:demo` (`-- --reset`, `-- --owner <email>` for Supabase): three demo work orders
+  from `demo/` via `backend/src/demo/seedDemo.ts` (DEV fixture, labelled simulated). Click path: `DEMO.md`.
 - Evidence media: `backend/src/media/` (PDF text via `unpdf`, video frames via `ffmpeg-static`).
 - Domain model: `backend/src/types.ts` (the frontend imports it via the `@domain` alias).
 - Roles and access: `backend/src/stores/workOrders.ts` (permissions), `routes/reviews.ts`

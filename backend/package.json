@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check:supabase": "tsx src/scripts/checkSupabase.ts",
-    "check:nebius": "tsx src/scripts/checkNebius.ts"
+    "check:nebius": "tsx src/scripts/checkNebius.ts",
+    "seed:demo": "tsx src/scripts/seedDemo.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
