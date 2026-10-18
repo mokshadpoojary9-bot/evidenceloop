@@ -167,7 +167,8 @@ export function WorkOrderDetail() {
         <aside className="space-y-5">
           <section className="card overflow-hidden" aria-label="Verification loop">
             <LoopVisual
-              className="h-56"
+              variant="status"
+              className="relative h-56"
               statuses={requirements.map((r) => r.status)}
               coreHex={hasRun || analyzing ? meta.hex : REQUIREMENT_STATUS.NOT_PROVEN.hex}
             />

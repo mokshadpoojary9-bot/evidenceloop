@@ -12,8 +12,15 @@ export function AiPill({ system, error }: { system: SystemStatus | null; error: 
       if (system.ai.live.state === 'connected') {
         return (
           <Pill className="border-emerald-400/30 text-emerald-300" title={system.ai.message}>
-            <Cpu className="size-3.5" aria-hidden /> Production AI: NVIDIA Nemotron via Nebius — connected ·{' '}
-            <span className="font-mono">{system.ai.model}</span>
+            <Cpu className="size-3.5" aria-hidden />
+            {/* The full sentence is ~560px wide and cannot wrap; phones show a short label instead. */}
+            <span aria-hidden className="sm:hidden">
+              Nemotron · connected
+            </span>
+            <span className="max-sm:sr-only">
+              Production AI: NVIDIA Nemotron via Nebius — connected ·{' '}
+              <span className="font-mono">{system.ai.model}</span>
+            </span>
           </Pill>
         );
       }

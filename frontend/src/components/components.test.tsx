@@ -4,13 +4,18 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { assessment, detail, NO_PERMISSIONS, review, system } from '../test/fixtures';
 import { EvidenceViewer } from './EvidenceViewer';
+import { Landing } from './Landing';
 import { Login } from './Login';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS } from './labels';
 import { ReviewPanel } from './ReviewPanel';
 import { StatusBadge } from './StatusBadge';
 import { AiBanner, AiPill } from './SystemStatus';
 
-const apiMock = vi.hoisted(() => ({ submitForReview: vi.fn(), decideReview: vi.fn() }));
+const apiMock = vi.hoisted(() => ({
+  submitForReview: vi.fn(),
+  decideReview: vi.fn(),
+  system: vi.fn(() => new Promise(() => {})),
+}));
 vi.mock('../api', () => ({ api: apiMock, fileUrl: (url: string | null) => url }));
 const authMock = vi.hoisted(() => ({
   enabled: true,
@@ -179,5 +184,27 @@ describe('Login', () => {
     await fill(user);
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(screen.getByText('Your email address is not confirmed yet.')).toBeTruthy();
+  });
+});
+
+describe('Landing hero', () => {
+  it('shows the headline, the dashboard link and the 2D loop when WebGL is unavailable', () => {
+    // jsdom has no IntersectionObserver (framer-motion's whileInView needs one).
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    render(<MemoryRouter><Landing /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1, name: "Prove the work. Don't just trust the photo." })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Open dashboard/ }).getAttribute('href')).toBe('/work-orders');
+    // jsdom has no WebGL, so the SVG version of the same loop is shown, described for screen readers.
+    expect(screen.getByRole('img', { name: /evidence loop.*Upload, Analyze, Map to requirement, Decide, Request more, Re-analyze/ })).toBeTruthy();
+    expect(screen.getAllByRole('listitem', { current: 'step' })).toHaveLength(1);
+    expect(screen.getByText(/arrive as evidence/)).toBeTruthy();
+    vi.unstubAllGlobals();
   });
 });
