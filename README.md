@@ -722,3 +722,7 @@ keys and prints none. Exit code 0 means everything passed.
    verification, so use a second account for it (e.g. `you+reviewer@…`): sign it up, then in the
    SQL editor:
    `insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'you+reviewer@example.com' on conflict (id) do update set role = excluded.role;`
+
+## License
+
+MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Moksha Poojary.

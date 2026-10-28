@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Multimodal AI evidence verification platform",
+  "license": "MIT",
   "workspaces": [
     "backend",
     "frontend"
