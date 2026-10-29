@@ -24,9 +24,9 @@ import { formatDate, formatTime } from './labels';
 import { SimulatedTag } from './StatusBadge';
 import { Badge } from './ui';
 
-type Category = 'evidence' | 'analysis' | 'requests' | 'review' | 'changes';
+export type Category = 'evidence' | 'analysis' | 'requests' | 'review' | 'changes';
 
-const CATEGORY_LABEL: Record<Category, string> = {
+export const CATEGORY_LABEL: Record<Category, string> = {
   evidence: 'Evidence',
   analysis: 'Analysis',
   requests: 'Requests',
@@ -34,7 +34,7 @@ const CATEGORY_LABEL: Record<Category, string> = {
   changes: 'Changes',
 };
 
-const EVENT: Record<string, { icon: LucideIcon; category: Category; tone: string }> = {
+export const EVENT: Record<string, { icon: LucideIcon; category: Category; tone: string }> = {
   EVIDENCE_UPLOADED: { icon: FileUp, category: 'evidence', tone: 'text-analyzing-fg' },
   EVIDENCE_REQUEST_FULFILLED: { icon: CircleCheck, category: 'requests', tone: 'text-analyzing-fg' },
   EVIDENCE_REQUEST_SUPERSEDED: { icon: SkipForward, category: 'requests', tone: 'text-fg-subtle' },
@@ -56,7 +56,7 @@ const EVENT: Record<string, { icon: LucideIcon; category: Category; tone: string
   WORK_ORDER_ARCHIVED: { icon: Archive, category: 'changes', tone: 'text-fg-muted' },
   WORK_ORDER_UNARCHIVED: { icon: Archive, category: 'changes', tone: 'text-fg-muted' },
 };
-const FALLBACK = { icon: Server, category: 'changes' as Category, tone: 'text-fg-muted' };
+export const FALLBACK = { icon: Server, category: 'changes' as Category, tone: 'text-fg-muted' };
 const describeEvent = (event: AuditEvent) => {
   const known = EVENT[event.type] ?? FALLBACK;
   // A completed run is only green when it actually ended in VERIFIED.

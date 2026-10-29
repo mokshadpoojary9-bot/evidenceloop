@@ -132,7 +132,7 @@ function SubmitForm({ workOrderId, onDone }: { workOrderId: string; onDone: () =
   );
 }
 
-function DecisionForm({ workOrderId, onDone }: { workOrderId: string; onDone: () => void }) {
+export function DecisionForm({ workOrderId, onDone }: { workOrderId: string; onDone: () => void }) {
   const [decision, setDecision] = useState<ReviewDecision>('approve');
   const [note, setNote] = useState('');
   const [kind, setKind] = useState<EvidenceKind>('video');

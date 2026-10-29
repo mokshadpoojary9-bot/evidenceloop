@@ -2,11 +2,13 @@ import { MotionConfig } from 'framer-motion';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AuthProvider, RequireAuth } from './auth';
 import { AppLayout, PublicLayout } from './components/AppShell';
+import { AuditLog } from './components/AuditLog';
 import { AuthCallback } from './components/AuthCallback';
 import { Dashboard } from './components/Dashboard';
 import { Landing } from './components/Landing';
 import { PrivacyPage, TermsPage } from './components/Legal';
 import { Login } from './components/Login';
+import { ReviewerOnly, ReviewQueue, RoleHome } from './components/ReviewQueue';
 import { WakingBanner } from './components/SystemStatus';
 import { ToastProvider } from './components/ui';
 import { WorkOrderDetail } from './components/WorkOrderDetail';
@@ -32,7 +34,10 @@ export function App() {
                   <Route path="terms" element={<TermsPage />} />
                 </Route>
                 <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
+                  <Route path="home" element={<RoleHome />} />
                   <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="review" element={<ReviewerOnly><ReviewQueue /></ReviewerOnly>} />
+                  <Route path="audit" element={<ReviewerOnly><AuditLog /></ReviewerOnly>} />
                   <Route path="work-orders" element={<WorkOrderList />} />
                   <Route path="work-orders/new" element={<WorkOrderForm />} />
                   <Route path="work-orders/:id" element={<WorkOrderDetail />} />

@@ -3,6 +3,8 @@
 
 export const NEXT_PARAM = 'next';
 export const DEFAULT_RETURN = '/dashboard';
+/** After sign-in with no return address: the dashboard or the review queue, by role. */
+export const ROLE_HOME = '/home';
 /** Where Google sign-in returns to. Covered by the `<origin>/**` Redirect URL in Supabase. */
 export const AUTH_CALLBACK = '/auth/callback';
 
@@ -29,7 +31,7 @@ export function safeReturnPath(value: unknown, fallback = DEFAULT_RETURN): strin
 
 /** The absolute OAuth `redirectTo` for this origin, carrying the safe return path in `?next=`. */
 export function oauthRedirectTo(origin: string, next: unknown): string {
-  return `${origin}${AUTH_CALLBACK}?${NEXT_PARAM}=${encodeURIComponent(safeReturnPath(next))}`;
+  return `${origin}${AUTH_CALLBACK}?${NEXT_PARAM}=${encodeURIComponent(safeReturnPath(next, ROLE_HOME))}`;
 }
 
 /**

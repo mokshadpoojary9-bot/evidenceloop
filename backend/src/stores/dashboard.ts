@@ -1,7 +1,7 @@
 import { type AuthUser, LOCAL_REVIEWER } from '../middleware/auth.js';
 import { DASHBOARD_BUCKETS, type DashboardBucket, type DashboardData } from '../types.js';
 import type { Db } from './db.js';
-import { listWorkOrderSummaries, pendingReview } from './workOrders.js';
+import { listWorkOrderSummaries, pendingReview, reviewEligibility } from './workOrders.js';
 
 const ACTIVITY_LIMIT = 10;
 
@@ -67,6 +67,19 @@ export async function getDashboard(db: Db, user: AuthUser): Promise<DashboardDat
 
   return {
     counts,
+    drafts:
+      user.role === 'technician'
+        ? active
+            .filter((workOrder) => workOrder.status === 'AWAITING_EVIDENCE')
+            .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+            .map(({ id, title, location, updatedAt }) => ({ workOrderId: id, title, location, updatedAt }))
+        : [],
+    readyForReview:
+      user.role === 'technician'
+        ? active
+            .filter((workOrder) => !reviewEligibility(workOrder, workOrder.requirementStatuses.map((status) => ({ status }))))
+            .map(({ id, title, status }) => ({ workOrderId: id, title, status }))
+        : [],
     openRequests: requestGroups.flat().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
     awaitingReview: reviewGroups.sort((a, b) => (a.submittedAt < b.submittedAt ? -1 : 1)),
     activity: latest.map((event) => ({

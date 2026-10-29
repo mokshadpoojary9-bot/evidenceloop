@@ -1,7 +1,7 @@
 import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from '../auth';
-import { NEXT_PARAM, oauthError, safeReturnPath } from '../lib/returnTo';
+import { NEXT_PARAM, oauthError, ROLE_HOME, safeReturnPath } from '../lib/returnTo';
 import { ButtonLink } from './ui';
 
 /**
@@ -11,7 +11,7 @@ import { ButtonLink } from './ui';
 export function AuthCallback() {
   const auth = useAuth();
   const location = useLocation();
-  const next = safeReturnPath(new URLSearchParams(location.search).get(NEXT_PARAM));
+  const next = safeReturnPath(new URLSearchParams(location.search).get(NEXT_PARAM), ROLE_HOME);
   const error = oauthError(location.search, location.hash);
 
   if (!auth.enabled || auth.session) return <Navigate to={next} replace />;

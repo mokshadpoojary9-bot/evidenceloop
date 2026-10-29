@@ -6,8 +6,10 @@ import {
   FilePen,
   History,
   Inbox,
+  LoaderCircle,
   OctagonAlert,
   Plus,
+  Send,
   UserSearch,
   Upload,
   type LucideIcon,
@@ -20,7 +22,7 @@ import { DASHBOARD_BUCKETS, EVIDENCE_KIND_LABELS, type DashboardBucket, type Das
 import { useViewer } from '../viewer';
 import { EVIDENCE_ICON, formatDate, formatRelative } from './labels';
 import { AiBanner, SystemChips } from './SystemStatus';
-import { ButtonLink, Card, EmptyState, ErrorState, Loading, PageHeader, Skeleton, type Tone, TONE } from './ui';
+import { Button, ButtonLink, Card, EmptyState, ErrorState, Loading, PageHeader, Skeleton, type Tone, TONE, useToast } from './ui';
 
 const LIVE_TABLES = ['work_orders', 'evidence_requests', 'audit_events'] as const;
 
@@ -94,7 +96,7 @@ export function Dashboard() {
           </section>
 
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-            <NeedsAction data={data} isReviewer={isReviewer} />
+            <NeedsAction data={data} isReviewer={isReviewer} onChanged={load} />
             <Activity data={data} />
           </div>
         </>
@@ -128,8 +130,9 @@ function CountCard({ bucket, count, index }: { bucket: DashboardBucket; count: n
   );
 }
 
-function NeedsAction({ data, isReviewer }: { data: DashboardData; isReviewer: boolean }) {
-  const empty = data.openRequests.length === 0 && data.awaitingReview.length === 0;
+function NeedsAction({ data, isReviewer, onChanged }: { data: DashboardData; isReviewer: boolean; onChanged: () => void }) {
+  const open = data.openRequests.length + data.awaitingReview.length + data.readyForReview.length + data.drafts.length;
+  const empty = open === 0;
   return (
     <Card as="section" padding="none" aria-labelledby="action-heading">
       <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
@@ -137,15 +140,18 @@ function NeedsAction({ data, isReviewer }: { data: DashboardData; isReviewer: bo
           <Inbox className="size-4.5 text-accent-fg" aria-hidden /> Needs your action
         </h2>
         <span className="text-xs text-fg-subtle tabular-nums">
-          {data.openRequests.length + data.awaitingReview.length} open
+          {open} open
         </span>
       </div>
       {empty ? (
         <p className="px-5 py-10 text-center text-sm text-fg-subtle">
-          Nothing is waiting on you. Open evidence requests and work orders waiting for review appear here.
+          Nothing is waiting on you. Open evidence requests, drafts and work orders to submit for review appear here.
         </p>
       ) : (
         <ul className="divide-y divide-line">
+          {data.readyForReview.map((item) => (
+            <ReadyForReview key={`ready-${item.workOrderId}`} item={item} onSubmitted={onChanged} />
+          ))}
           {data.awaitingReview.map((item) => (
             <li key={`review-${item.workOrderId}`}>
               <Link
@@ -193,9 +199,67 @@ function NeedsAction({ data, isReviewer }: { data: DashboardData; isReviewer: bo
               </li>
             );
           })}
+          {data.drafts.map((draft) => (
+            <li key={`draft-${draft.workOrderId}`}>
+              <Link
+                to={`/work-orders/${draft.workOrderId}`}
+                className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-surface-2"
+              >
+                <span className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border ${TONE['not-proven']}`}>
+                  <FilePen className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-fg">{draft.title}</span>
+                  <span className="block text-xs text-fg-subtle">
+                    Draft · not verified yet{draft.location && <> · {draft.location}</>} · changed{' '}
+                    <time dateTime={draft.updatedAt} title={formatDate(draft.updatedAt)}>
+                      {formatRelative(draft.updatedAt)}
+                    </time>
+                  </span>
+                </span>
+                <span className="self-center text-xs font-semibold text-accent-fg">Add evidence</span>
+              </Link>
+            </li>
+          ))}
         </ul>
       )}
     </Card>
+  );
+}
+
+/** Contradicted or uncertain: the evidence cannot settle it, so the technician can hand it to a reviewer. */
+function ReadyForReview({ item, onSubmitted }: { item: DashboardData['readyForReview'][number]; onSubmitted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await api.submitForReview(item.workOrderId, '');
+      toast.success('Submitted for review');
+      onSubmitted();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not submit for review');
+      setBusy(false);
+    }
+  };
+  return (
+    <li className="flex items-start gap-3 px-5 py-3.5">
+      <span className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border ${TONE[item.status === 'CONTRADICTED' ? 'contradicted' : 'uncertain']}`}>
+        <OctagonAlert className="size-4" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <Link to={`/work-orders/${item.workOrderId}`} className="block font-semibold text-fg hover:underline">
+          {item.title}
+        </Link>
+        <span className="block text-xs text-fg-subtle">
+          {item.status === 'CONTRADICTED' ? 'Contradicted' : 'Uncertain'}: the evidence cannot settle it. A reviewer can decide.
+        </span>
+      </span>
+      <Button size="sm" variant="primary" disabled={busy} onClick={() => void submit()}>
+        {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+        Submit for review
+      </Button>
+    </li>
   );
 }
 

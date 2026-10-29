@@ -312,6 +312,10 @@ export interface DashboardData {
   }[];
   /** Work orders waiting for a reviewer's decision, oldest submission first. */
   awaitingReview: { workOrderId: string; title: string; location: string; submittedAt: string }[];
+  /** Technicians: their drafts (no verification run yet), most recently changed first. */
+  drafts: { workOrderId: string; title: string; location: string; updatedAt: string }[];
+  /** Technicians: contradicted or uncertain work orders they can submit for review now. */
+  readyForReview: { workOrderId: string; title: string; status: WorkOrderStatus }[];
   /** The latest audit events across the user's work orders, newest first. */
   activity: {
     id: string;
@@ -323,6 +327,43 @@ export interface DashboardData {
     actor: string;
     createdAt: string;
   }[];
+}
+
+/** Why a work order is in the reviewer's queue. */
+export const QUEUE_REASONS = ['IN_REVIEW', 'CONTRADICTED', 'UNCERTAIN'] as const;
+export type QueueReason = (typeof QUEUE_REASONS)[number];
+
+/** One row of the reviewer's queue (GET /api/reviewer/queue). */
+export interface ReviewQueueItem {
+  workOrderId: string;
+  title: string;
+  location: string;
+  status: WorkOrderStatus;
+  reason: QueueReason;
+  simulated: boolean;
+  /** The owning technician's name (or email when they have no name). */
+  technician: string;
+  /** When the pending review was submitted; null while the technician has not submitted it. */
+  submittedAt: string | null;
+  submissionNote: string | null;
+  requirementStatuses: RequirementStatus[];
+  /** Whether this reviewer can decide now; otherwise `blocker` says why. */
+  canDecide: boolean;
+  blocker: string | null;
+  updatedAt: string;
+}
+
+/** One event in the reviewer's audit log (GET /api/reviewer/audit-log). */
+export interface AuditLogEntry {
+  id: string;
+  workOrderId: string;
+  workOrderTitle: string;
+  type: string;
+  summary: string;
+  /** "Agent", "System", or the person's name. */
+  actor: string;
+  actorRole: 'agent' | 'system' | Role;
+  createdAt: string;
 }
 
 /** What the upload-time check found in a PDF. Without a text layer (a scan) the AI cannot read it. */

@@ -275,6 +275,17 @@ only those three. In Supabase mode, pass the owning technician: `-- --owner you@
 | **Technician** (default) | Create work orders, upload evidence, run verification, add requirements, edit/archive/delete their own work orders, submit for review |
 | **Reviewer** | Read every work order, export reports, decide pending reviews. Cannot change work orders or upload evidence |
 
+Each role has its own workspace, and the role comes only from `public.user_roles`:
+
+- **Technician:** *Dashboard* (open evidence requests, drafts, and contradicted or uncertain
+  work orders with a **Submit for review** button), *My work orders*, *New work order*.
+- **Reviewer (admin):** marked with a violet **Reviewer** badge. *Review queue* (`/review`) lists
+  in-review, contradicted and uncertain work orders from every technician, with the technician's
+  name, submission time and score, and approve / reject / request more evidence (note required)
+  once submitted. *All work orders*, and *Audit log* (`/audit`), the latest events across every
+  work order, filterable by work order, event type, person and text.
+- After sign-in, technicians land on the dashboard and reviewers on the review queue.
+
 A work order that is **CONTRADICTED**, or **not verified with an UNCERTAIN requirement**, can be
 submitted for review. It moves to **In review** and is frozen (no uploads, runs or checklist
 changes). The reviewer then, always with a note:
@@ -307,8 +318,8 @@ The new role applies on the user's next request; reload the dashboard. Reviewers
 work orders, so testing the flow needs two accounts: a technician who submits and a reviewer who
 decides.
 
-**Local mode:** a *Demo: Technician / Reviewer* switcher in the header acts as two fixed local
-users. The backend honours it only when Supabase Auth is not configured.
+**Local mode:** a *Demo mode* Technician / Reviewer switcher acts as two fixed local users. It
+appears only in local mode, and the backend honours it only when Supabase Auth is not configured.
 
 ## Requirements from an SOP
 

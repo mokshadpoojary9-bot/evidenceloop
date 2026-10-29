@@ -1,11 +1,14 @@
 import { motion } from 'framer-motion';
 import {
   ClipboardList,
+  History,
+  Inbox,
   LayoutDashboard,
   LogOut,
   Menu,
   Moon,
   Plus,
+  ShieldCheck,
   Sparkles,
   Sun,
   UserRound,
@@ -20,7 +23,7 @@ import { useTheme } from '../lib/theme';
 import { DISCLAIMER, type Role } from '../types';
 import { useViewer } from '../viewer';
 import { AiPill, SystemChips } from './SystemStatus';
-import { Button, Select } from './ui';
+import { Badge, Button, Select } from './ui';
 
 // Two layouts: the public pages (landing, sign-in) keep a top bar so the hero can use the
 // full width; the signed-in app has a sidebar on desktop and a drawer on mobile.
@@ -30,18 +33,20 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   isActive: (path: string) => boolean;
-  technicianOnly?: boolean;
+  /** Who sees it; everyone when omitted. Roles come from the server, never from the browser. */
+  role?: Role;
 }
 
+const isWorkOrders = (p: string) => p.startsWith('/work-orders') && p !== '/work-orders/new';
+
+// Technicians do the work; reviewers (admins) check it. Each gets their own workspace.
 const NAV: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, isActive: (p) => p === '/dashboard' },
-  {
-    to: '/work-orders',
-    label: 'Work orders',
-    icon: ClipboardList,
-    isActive: (p) => p.startsWith('/work-orders') && p !== '/work-orders/new',
-  },
-  { to: '/work-orders/new', label: 'New work order', icon: Plus, isActive: (p) => p === '/work-orders/new', technicianOnly: true },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, isActive: (p) => p === '/dashboard', role: 'technician' },
+  { to: '/work-orders', label: 'My work orders', icon: ClipboardList, isActive: isWorkOrders, role: 'technician' },
+  { to: '/work-orders/new', label: 'New work order', icon: Plus, isActive: (p) => p === '/work-orders/new', role: 'technician' },
+  { to: '/review', label: 'Review queue', icon: Inbox, isActive: (p) => p === '/review', role: 'reviewer' },
+  { to: '/work-orders', label: 'All work orders', icon: ClipboardList, isActive: isWorkOrders, role: 'reviewer' },
+  { to: '/audit', label: 'Audit log', icon: History, isActive: (p) => p === '/audit', role: 'reviewer' },
   { to: '/', label: 'About EvidenceLoop', icon: Sparkles, isActive: (p) => p === '/' },
 ];
 
@@ -68,7 +73,10 @@ export function AppLayout() {
         >
           <Menu className="size-5" aria-hidden />
         </Button>
-        <Logo compact />
+        <span className="flex items-center gap-2">
+          <Logo compact />
+          <ReviewerBadge />
+        </span>
         <ThemeToggle />
       </header>
 
@@ -126,7 +134,8 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
   const { pathname } = useLocation();
   const { system, error } = useSystem();
   const { viewer } = useViewer();
-  const items = NAV.filter((item) => !item.technicianOnly || viewer?.role !== 'reviewer');
+  const role = viewer?.role ?? 'technician';
+  const items = NAV.filter((item) => !item.role || item.role === role);
 
   return (
     <div className="flex h-full flex-col gap-6 p-4">
@@ -139,12 +148,14 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
         )}
       </div>
 
+      <ReviewerBadge className="self-start" />
+
       <nav aria-label="Main">
         <ul className="space-y-1">
           {items.map(({ to, label, icon: Icon, isActive }) => {
             const active = isActive(pathname);
             return (
-              <li key={to}>
+              <li key={label}>
                 <Link
                   to={to}
                   onClick={onNavigate}
@@ -228,7 +239,21 @@ export function ThemeToggle() {
   );
 }
 
-/** Local development: switch between the demo technician and reviewer. Otherwise the role. */
+/** The reviewer (admin) console is marked everywhere, in the review colour. Nothing for technicians. */
+export function ReviewerBadge({ className = '' }: { className?: string }) {
+  const { viewer } = useViewer();
+  if (viewer?.role !== 'reviewer') return null;
+  return (
+    <Badge tone="review" className={className} title="Reviewer (admin): you check the work, you do not do it">
+      <ShieldCheck className="size-3.5" aria-hidden /> Reviewer
+    </Badge>
+  );
+}
+
+/**
+ * Local mode only: "Demo mode" switches between the demo technician and reviewer. With
+ * Supabase the role is read from public.user_roles and only shown, never switchable.
+ */
 function RoleControl() {
   const { viewer, switchDemoRole } = useViewer();
   if (!viewer) return null;
@@ -239,14 +264,15 @@ function RoleControl() {
         title="Local development only: act as the demo technician or reviewer"
       >
         <UserRound className="size-3.5" aria-hidden />
-        <span className="sr-only">Demo role</span>
+        <span className="font-semibold">Demo mode</span>
         <Select className="w-auto py-1 text-xs" value={viewer.role} onChange={(event) => switchDemoRole(event.target.value as Role)}>
-          <option value="technician">Demo: Technician</option>
-          <option value="reviewer">Demo: Reviewer</option>
+          <option value="technician">Technician</option>
+          <option value="reviewer">Reviewer</option>
         </Select>
       </label>
     );
   }
+  if (viewer.role === 'reviewer') return <ReviewerBadge />;
   return (
     <span className="inline-flex items-center gap-1 text-xs text-fg-subtle capitalize">
       <UserRound className="size-3.5" aria-hidden /> {viewer.role}

@@ -7,10 +7,12 @@ import { createAuth, currentUser } from './middleware/auth.js';
 import { errorHandler, HttpError, notFound } from './middleware/errors.js';
 import { createSystemRouter } from './routes/health.js';
 import { createRequirementsRouter } from './routes/requirements.js';
+import { createReviewerRouter } from './routes/reviewer.js';
 import { createReviewsRouter } from './routes/reviews.js';
 import { createWorkOrdersRouter } from './routes/workOrders.js';
 import { getDashboard } from './stores/dashboard.js';
 import type { Db } from './stores/db.js';
+import { createPeople } from './stores/people.js';
 import { LocalFileStore, type FileStore } from './stores/fileStore.js';
 import type { ReadinessReport, SystemStatus, Viewer } from './types.js';
 
@@ -70,6 +72,9 @@ export function createApp({ db, files, engine, ai, supabase, system, corsOrigins
     createWorkOrdersRouter({ db, files, engine, maxUploadMb: system.maxUploadMb }),
     createReviewsRouter({ db, files }),
   );
+
+  // The reviewer (admin) console: review queue and audit log, reviewers only.
+  app.use('/api/reviewer', auth, createReviewerRouter({ db, people: createPeople(supabase, db) }));
 
   app.use(
     '/api/requirements',

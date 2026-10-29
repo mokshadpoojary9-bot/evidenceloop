@@ -1,10 +1,12 @@
 import { supabase } from './lib/supabase';
 import type {
   AddRequirementsInput,
+  AuditLogEntry,
   DashboardData,
   EvidenceKind,
   NewWorkOrderInput,
   RequirementDraftResponse,
+  ReviewQueueItem,
   ReviewDecision,
   Role,
   SystemStatus,
@@ -202,6 +204,13 @@ export const api = {
   templates: () =>
     request<{ templates: WorkOrderTemplate[] }>('/api/templates').then((r) => r.templates),
   dashboard: () => request<DashboardData>('/api/dashboard'),
+  reviewQueue: () => request<{ items: ReviewQueueItem[] }>('/api/reviewer/queue').then((r) => r.items),
+  auditLog: (filter: { type?: string; workOrderId?: string; limit?: number } = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filter)) if (value !== undefined && value !== '') params.set(key, String(value));
+    const query = params.toString();
+    return request<{ entries: AuditLogEntry[] }>(`/api/reviewer/audit-log${query ? `?${query}` : ''}`).then((r) => r.entries);
+  },
   listWorkOrders: () =>
     request<{ workOrders: WorkOrderSummary[] }>('/api/work-orders').then((r) => r.workOrders),
   getWorkOrder: (id: string) => request<WorkOrderDetail>(`/api/work-orders/${id}`),

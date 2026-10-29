@@ -306,6 +306,8 @@ describe('Dashboard', () => {
       },
     ],
     awaitingReview: [{ workOrderId: 'wo-2', title: 'Fix fire door closer', location: 'Stair B', submittedAt: new Date().toISOString() }],
+    drafts: [{ workOrderId: 'wo-3', title: 'Service exit sign', location: 'Hall C', updatedAt: new Date().toISOString() }],
+    readyForReview: [{ workOrderId: 'wo-4', title: 'Replace smoke detector', status: 'CONTRADICTED' }],
     activity: [
       {
         id: 'a1',
@@ -333,6 +335,13 @@ describe('Dashboard', () => {
     const action = screen.getByRole('region', { name: /Needs your action/ });
     expect(within(action).getByText(/functional test\./)).toBeTruthy();
     expect(within(action).getByText(/Waiting for a reviewer/)).toBeTruthy();
+    expect(within(action).getByRole('link', { name: /Service exit sign/ }).textContent).toMatch(/Draft · not verified yet/);
+
+    // Contradicted: the technician hands it to a reviewer from the dashboard.
+    apiMock.dashboard.mockClear();
+    await userEvent.setup().click(within(action).getByRole('button', { name: 'Submit for review' }));
+    expect(apiMock.submitForReview).toHaveBeenCalledWith('wo-4', '');
+    expect(apiMock.dashboard).toHaveBeenCalled();
 
     const activity = screen.getByRole('region', { name: /Recent activity/ });
     const row = within(activity).getByText('Functional test completed: NOT_PROVEN').closest('a')!;

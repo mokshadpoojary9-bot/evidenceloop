@@ -12,9 +12,11 @@ import { LocalDb } from './stores/localDb.js';
 import { makePdf } from './test/fixtures.js';
 import {
   CANNOT_VERIFY,
+  type AuditLogEntry,
   type DashboardData,
   type EvidenceKind,
   type RequirementDraftResponse,
+  type ReviewQueueItem,
   type SystemStatus,
   type WorkOrderDetail,
 } from './types.js';
@@ -594,6 +596,45 @@ describe('roles and reviewer sign-off', () => {
       .attach('file', Buffer.from('x'), { filename: 'a.jpg', contentType: 'image/jpeg' });
     expect(uploadAsReviewer.status).toBe(403);
   });
+
+  it('keeps the reviewer console for reviewers: queue with technician, submission and decision state', async () => {
+    expect((await api.get('/api/reviewer/queue')).status).toBe(403);
+    expect((await api.get('/api/reviewer/audit-log')).status).toBe(403);
+
+    const id = await uncertainWorkOrder();
+    const draft = await create(); // never analyzed: not in the queue
+    const queued = async () => ((await reviewer('get', '/api/reviewer/queue')).body.items as ReviewQueueItem[]);
+
+    const before = (await queued()).find((item) => item.workOrderId === id)!;
+    expect(before).toMatchObject({ reason: 'UNCERTAIN', technician: 'Demo technician', submittedAt: null, canDecide: false });
+    expect(before.blocker).toMatch(/no pending review/);
+    expect((await queued()).some((item) => item.workOrderId === draft)).toBe(false);
+
+    await api.post(`/api/work-orders/${id}/reviews`).send({ note: 'Please check the indicator' });
+    const after = (await queued()).find((item) => item.workOrderId === id)!;
+    expect(after).toMatchObject({ reason: 'IN_REVIEW', canDecide: true, blocker: null, submissionNote: 'Please check the indicator' });
+    expect(after.submittedAt).toBeTruthy();
+    expect(after.requirementStatuses).toContain('UNCERTAIN');
+    // Submitted work orders come first.
+    expect((await queued())[0]!.submittedAt).toBeTruthy();
+  });
+
+  it('shows reviewers the audit log across work orders, newest first, filterable', async () => {
+    const id = await uncertainWorkOrder();
+    await api.post(`/api/work-orders/${id}/reviews`).send({});
+    await reviewer('post', `/api/work-orders/${id}/reviews/decision`).send({ decision: 'reject', note: 'Wrong unit model.' });
+
+    const all = (await reviewer('get', '/api/reviewer/audit-log?limit=500')).body.entries as AuditLogEntry[];
+    const times = all.map((entry) => entry.createdAt);
+    expect([...times].sort().reverse()).toEqual(times);
+    expect(all.some((entry) => entry.actorRole === 'agent' && entry.actor === 'Agent')).toBe(true);
+
+    const rejected = (await reviewer('get', `/api/reviewer/audit-log?type=REVIEW_REJECTED&workOrderId=${id}`)).body.entries as AuditLogEntry[];
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toMatchObject({ workOrderId: id, actor: 'Demo reviewer', actorRole: 'reviewer' });
+    expect((await reviewer('get', '/api/reviewer/audit-log?limit=2')).body.entries).toHaveLength(2);
+    expect((await reviewer('get', '/api/reviewer/audit-log?workOrderId=nope')).status).toBe(400);
+  });
 });
 
 describe('dashboard', () => {
@@ -614,6 +655,9 @@ describe('dashboard', () => {
     expect(body.openRequests[0]).toMatchObject({ workOrderId: id, kind: 'video' });
     expect(body.openRequests[0]!.requirementTitles.length).toBeGreaterThan(0);
     expect(body.awaitingReview).toEqual([]);
+    expect(body.drafts.map((draft) => draft.title)).toHaveLength(1);
+    // NEEDS_EVIDENCE with an uncertain requirement: ready to send to a reviewer.
+    expect(body.readyForReview).toEqual([{ workOrderId: id, title: expect.any(String), status: 'NEEDS_EVIDENCE' }]);
 
     expect(body.activity).toHaveLength(10);
     const times = body.activity.map((event) => event.createdAt);

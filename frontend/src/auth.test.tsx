@@ -73,8 +73,8 @@ describe('Google sign-in addresses', () => {
     expect(oauthRedirectTo('https://app.example', '/work-orders?status=CONTRADICTED')).toBe(
       'https://app.example/auth/callback?next=%2Fwork-orders%3Fstatus%3DCONTRADICTED',
     );
-    expect(oauthRedirectTo('https://app.example', 'https://evil.example/')).toBe('https://app.example/auth/callback?next=%2Fdashboard');
-    expect(oauthRedirectTo('https://app.example', null)).toBe('https://app.example/auth/callback?next=%2Fdashboard');
+    expect(oauthRedirectTo('https://app.example', 'https://evil.example/')).toBe('https://app.example/auth/callback?next=%2Fhome');
+    expect(oauthRedirectTo('https://app.example', null)).toBe('https://app.example/auth/callback?next=%2Fhome');
   });
 
   it('explains a cancelled or failed callback, from the query string or the hash', () => {
@@ -122,7 +122,8 @@ describe('sign-in redirect', () => {
     await user.type(await screen.findByLabelText('Email'), 'tech@example.com');
     await user.type(screen.getByLabelText('Password'), 'secret-password');
     await act(() => user.click(screen.getByRole('button', { name: 'Sign in' })));
-    expect(screen.getByTestId('where').textContent).toBe('/dashboard');
+    // No usable return address: the role's home (dashboard or review queue).
+    expect(screen.getByTestId('where').textContent).toBe('/home');
   });
 
   it('keeps a wrong password on the sign-in page with a plain message', async () => {

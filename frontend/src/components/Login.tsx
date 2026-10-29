@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { useAuth } from '../auth';
 import { currentPasswordError, emailError, newPasswordError, PASSWORD_MIN_LENGTH } from '../lib/authValidation';
-import { NEXT_PARAM, safeReturnPath } from '../lib/returnTo';
+import { NEXT_PARAM, ROLE_HOME, safeReturnPath } from '../lib/returnTo';
 import { Button, Field, Input } from './ui';
 
 type FieldErrors = { email: string | null; password: string | null };
@@ -22,7 +22,7 @@ export function Login() {
   const [awaitingConfirmation, setAwaitingConfirmation] = useState<string | null>(null);
 
   const next = new URLSearchParams(location.search).get(NEXT_PARAM);
-  const destination = safeReturnPath(next);
+  const destination = safeReturnPath(next, ROLE_HOME);
   if (!auth.enabled || auth.session) return <Navigate to={destination} replace />;
 
   const handleGoogle = async () => {
@@ -91,6 +91,14 @@ export function Login() {
   return (
     <div className="card mx-auto mt-10 max-w-sm space-y-4 p-6">
       <h1 className="text-xl font-bold text-fg">{mode === 'sign-in' ? 'Sign in' : 'Create an account'}</h1>
+      <ul className="space-y-1 text-xs text-fg-subtle">
+        <li>
+          <strong className="text-fg">Technicians</strong> create work orders, upload evidence and submit them for review.
+        </li>
+        <li>
+          <strong className="text-review-fg">Reviewers</strong> check the evidence and approve, reject or ask for more.
+        </li>
+      </ul>
       <Button type="button" variant="primary" className="w-full" disabled={busy !== null} onClick={() => void handleGoogle()}>
         {busy === 'google' ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <GoogleG />}
         Continue with Google
