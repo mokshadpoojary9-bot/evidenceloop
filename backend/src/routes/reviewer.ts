@@ -4,8 +4,9 @@ import { currentUser } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
 import type { Db } from '../stores/db.js';
 import type { People } from '../stores/people.js';
-import { listWorkOrderSummaries, pendingReview, permissionsFor, reviewEligibility } from '../stores/workOrders.js';
-import type { AuditEvent, AuditLogEntry, QueueReason, ReviewQueueItem, WorkOrderSummary } from '../types.js';
+import { getReviewQueue } from '../stores/reviewQueue.js';
+import { listWorkOrderSummaries } from '../stores/workOrders.js';
+import type { AuditEvent, AuditLogEntry } from '../types.js';
 
 const AUDIT_LIMIT_DEFAULT = 100;
 
@@ -17,13 +18,6 @@ const auditQuerySchema = z.object({
 
 const newestFirst = (a: { createdAt: string }, b: { createdAt: string }) =>
   a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
-
-function queueReason(workOrder: WorkOrderSummary): QueueReason | null {
-  if (workOrder.archivedAt !== null) return null;
-  if (workOrder.status === 'IN_REVIEW') return 'IN_REVIEW';
-  if (reviewEligibility(workOrder, workOrder.requirementStatuses.map((status) => ({ status })))) return null;
-  return workOrder.status === 'CONTRADICTED' ? 'CONTRADICTED' : 'UNCERTAIN';
-}
 
 /**
  * The reviewer (admin) console: the queue of work orders the evidence could not settle,
@@ -39,43 +33,7 @@ export function createReviewerRouter({ db, people }: { db: Db; people: People })
   });
 
   router.get('/queue', async (_req, res) => {
-    const user = currentUser(res);
-    const summaries = await listWorkOrderSummaries(db, user);
-    const items = await Promise.all(
-      summaries.flatMap((workOrder) => {
-        const reason = queueReason(workOrder);
-        if (!reason) return [];
-        return [
-          (async (): Promise<ReviewQueueItem> => {
-            const reviews = await db.list('reviews', { workOrderId: workOrder.id }, 'submittedAt');
-            const pending = pendingReview(reviews);
-            const permissions = permissionsFor(workOrder, user, workOrder.requirementStatuses.map((status) => ({ status })), reviews);
-            return {
-              workOrderId: workOrder.id,
-              title: workOrder.title,
-              location: workOrder.location,
-              status: workOrder.status,
-              reason,
-              simulated: workOrder.simulated,
-              technician: (await people.get(workOrder.ownerId)).name,
-              submittedAt: pending?.submittedAt ?? null,
-              submissionNote: pending?.submissionNote || null,
-              requirementStatuses: workOrder.requirementStatuses,
-              canDecide: permissions.review,
-              blocker: permissions.reasons.review ?? null,
-              updatedAt: workOrder.updatedAt,
-            };
-          })(),
-        ];
-      }),
-    );
-    // Submitted ones first, oldest submission first; then the rest, most recently changed first.
-    items.sort((a, b) => {
-      if (a.submittedAt && b.submittedAt) return a.submittedAt < b.submittedAt ? -1 : 1;
-      if (a.submittedAt || b.submittedAt) return a.submittedAt ? -1 : 1;
-      return a.updatedAt < b.updatedAt ? 1 : -1;
-    });
-    res.json({ items });
+    res.json({ items: await getReviewQueue(db, currentUser(res), people) });
   });
 
   router.get('/audit-log', async (req, res) => {

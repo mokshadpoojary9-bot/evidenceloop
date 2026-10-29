@@ -4,8 +4,11 @@ import cors from 'cors';
 import express from 'express';
 import type { Engine } from './agent/engine.js';
 import type { AiProvider } from './ai/provider.js';
+import { createRateLimiter } from './assistant/rateLimit.js';
+import type { AssistantChat } from './assistant/verity.js';
 import { createAuth, currentUser } from './middleware/auth.js';
 import { errorHandler, HttpError, notFound } from './middleware/errors.js';
+import { createAssistantRouter } from './routes/assistant.js';
 import { createSystemRouter } from './routes/health.js';
 import { createRequirementsRouter } from './routes/requirements.js';
 import { createReviewerRouter } from './routes/reviewer.js';
@@ -27,11 +30,13 @@ export interface AppDeps {
   supabase: SupabaseClient | null;
   system: SystemStatus;
   corsOrigins: string[];
+  /** Verity's chat model (Nemotron Nano on Nebius); null or omitted when not configured. */
+  assistant?: AssistantChat | null;
   /** Backs GET /api/health/ready; omitted in tests. */
   readiness?: () => Promise<ReadinessReport>;
 }
 
-export function createApp({ db, files, engine, ai, supabase, system, corsOrigins, readiness }: AppDeps) {
+export function createApp({ db, files, engine, ai, supabase, system, corsOrigins, readiness, assistant = null }: AppDeps) {
   const app = express();
 
   app.disable('x-powered-by');
@@ -82,6 +87,9 @@ export function createApp({ db, files, engine, ai, supabase, system, corsOrigins
     createWorkOrdersRouter({ db, files, engine, maxUploadMb: system.maxUploadMb }),
     createReviewsRouter({ db, files }),
   );
+
+  // Verity, the read-only assistant: answers from the user's own data (by role).
+  app.use('/api/assistant', auth, createAssistantRouter({ db, chat: assistant, limiter: createRateLimiter() }));
 
   // The reviewer (admin) console: review queue and audit log, reviewers only.
   app.use('/api/reviewer', auth, createReviewerRouter({ db, people: createPeople(supabase, db) }));

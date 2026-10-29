@@ -46,7 +46,7 @@ describe('workspaces by role', () => {
   it('gives technicians their own work, with no role switch when signed in with Supabase', () => {
     viewerMock.viewer = technician;
     render(<MemoryRouter initialEntries={['/dashboard']}><AppLayout /></MemoryRouter>);
-    expect(navLinks()).toEqual(['Dashboard', 'My work orders', 'New work order', 'About EvidenceLoop']);
+    expect(navLinks()).toEqual(['Dashboard', 'My work orders', 'New work order']); // plus the Ask Verity button
     expect(screen.queryByRole('combobox')).toBeNull();
     expect(screen.queryByText('Reviewer')).toBeNull();
   });
@@ -54,7 +54,7 @@ describe('workspaces by role', () => {
   it('gives reviewers the console, marked with the Reviewer badge', () => {
     viewerMock.viewer = reviewer;
     render(<MemoryRouter initialEntries={['/review']}><AppLayout /></MemoryRouter>);
-    expect(navLinks()).toEqual(['Review queue', 'All work orders', 'Audit log', 'About EvidenceLoop']);
+    expect(navLinks()).toEqual(['Review queue', 'All work orders', 'Audit log']);
     expect(screen.getAllByText('Reviewer').length).toBeGreaterThanOrEqual(2); // sidebar and header
     expect(screen.queryByRole('combobox')).toBeNull();
   });

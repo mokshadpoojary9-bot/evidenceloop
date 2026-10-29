@@ -88,6 +88,12 @@ Production AI is **NVIDIA Nemotron served by Nebius Token Factory**. It is the o
 provider in this project. There is no other AI API or SDK, and the browser never calls the model.
 
 - **Model:** `nvidia/Nemotron-3.5-Super-VL` (vision-language), set by `NEBIUS_MODEL`.
+- Nemotron Nano for fast assistant chat, Nemotron Super VL for vision verification:
+  **Verity**, the read-only assistant (`POST /api/assistant`, "Ask Verity" in the sidebar and on
+  work order pages), uses `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (`NEBIUS_ASSISTANT_MODEL`),
+  streamed with the reasoning trace off. It answers only from the signed-in user's own data
+  (technicians: their work orders; reviewers: the review queue), which the backend loads and
+  caps at 20k characters, and is limited to 8 questions a minute and 150 a day per user.
 - **Endpoint:** Nebius's OpenAI-compatible `POST {NEBIUS_BASE_URL}/chat/completions`, called with
   plain `fetch` (`backend/src/lib/nebius.ts`, `chatCompletion`). It uses JSON mode and
   temperature 0, with retries and backoff on 429/5xx/timeouts. The key is read only by the

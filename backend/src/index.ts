@@ -1,7 +1,8 @@
 import { createEngine, recoverInterruptedRuns } from './agent/engine.js';
 import { createAiProvider, describeAi, verifyLiveAi } from './ai/index.js';
 import { createApp } from './app.js';
-import { corsOrigins, env } from './config/env.js';
+import { createNebiusAssistant } from './assistant/verity.js';
+import { corsOrigins, env, isNebiusConfigured } from './config/env.js';
 import { supabase } from './lib/supabase.js';
 import { createReadiness } from './readiness.js';
 import { selectStores } from './stores/select.js';
@@ -25,7 +26,11 @@ const system: SystemStatus = {
 const ai = createAiProvider(files);
 const engine = createEngine(db, ai);
 const readiness = createReadiness(supabase, env.SUPABASE_STORAGE_BUCKET);
-const app = createApp({ db, files, engine, ai, supabase, system, corsOrigins, readiness });
+// Verity uses a fast chat model; verification keeps NEBIUS_MODEL (vision).
+const assistant = isNebiusConfigured
+  ? createNebiusAssistant({ apiKey: env.NEBIUS_API_KEY!, baseUrl: env.NEBIUS_BASE_URL, model: env.NEBIUS_ASSISTANT_MODEL })
+  : null;
+const app = createApp({ db, files, engine, ai, supabase, system, corsOrigins, readiness, assistant });
 
 const server = app.listen(env.PORT, () => {
   // Startup log reports modes only. Keys and URLs are never printed.
@@ -33,6 +38,7 @@ const server = app.listen(env.PORT, () => {
   console.log(`  persistence: ${system.persistence}${supabase ? '' : ` (${env.LOCAL_DATA_DIR}/, no auth — local development only)`}`);
   console.log(`  ai:          ${system.ai.mode} — ${system.ai.message}`);
   console.log(`  cors:        ${corsOrigins.length} allowed origin(s)`);
+  console.log(`  assistant:   ${assistant ? `Verity — ${env.NEBIUS_ASSISTANT_MODEL}` : 'not configured'}`);
 });
 
 // A short video on a slow uplink can take minutes to upload, longer than Node's default

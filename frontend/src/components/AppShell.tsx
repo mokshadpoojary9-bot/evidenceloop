@@ -9,19 +9,20 @@ import {
   Moon,
   Plus,
   ShieldCheck,
-  Sparkles,
   Sun,
   UserRound,
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth';
 import { useSystem } from '../hooks';
 import { useTheme } from '../lib/theme';
 import { DISCLAIMER, type Role } from '../types';
+import { useVerity, VerityProvider } from '../verity';
 import { useViewer } from '../viewer';
+import { VerityOrb } from './VerityOrb';
 import { AiPill, SystemChips } from './SystemStatus';
 import { Badge, Button, Loading, Select, Skeleton } from './ui';
 
@@ -47,12 +48,36 @@ const NAV: NavItem[] = [
   { to: '/review', label: 'Review queue', icon: Inbox, isActive: (p) => p === '/review', role: 'reviewer' },
   { to: '/work-orders', label: 'All work orders', icon: ClipboardList, isActive: isWorkOrders, role: 'reviewer' },
   { to: '/audit', label: 'Audit log', icon: History, isActive: (p) => p === '/audit', role: 'reviewer' },
-  { to: '/', label: 'About EvidenceLoop', icon: Sparkles, isActive: (p) => p === '/' },
 ];
+
+// Verity's chat panel loads the first time someone opens it.
+const VerityPanel = lazy(() => import('./VerityPanel').then((module) => ({ default: module.VerityPanel })));
+
+/** The work order being viewed, if any: Verity answers about it first. */
+function workOrderIdFrom(pathname: string): string | null {
+  const match = pathname.match(/^\/work-orders\/([0-9a-f-]{36})$/i);
+  return match ? match[1]! : null;
+}
 
 export function AppLayout() {
   const { viewer } = useViewer();
+  const { pathname } = useLocation();
+  // A new conversation for each signed-in user.
+  return (
+    <VerityProvider key={viewer?.id ?? 'signed-out'} workOrderId={workOrderIdFrom(pathname)}>
+      <AppFrame />
+    </VerityProvider>
+  );
+}
+
+function AppFrame() {
+  const { viewer } = useViewer();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const verity = useVerity();
+  const [verityLoaded, setVerityLoaded] = useState(false);
+  useEffect(() => {
+    if (verity.isOpen) setVerityLoaded(true);
+  }, [verity.isOpen]);
 
   return (
     <div className="flex min-h-screen flex-col lg:pl-sidebar">
@@ -93,7 +118,22 @@ export function AppLayout() {
         </PageTransition>
       </main>
 
-      <Footer className="px-4 sm:px-6 lg:px-8" />
+      <Footer className="px-4 sm:px-6 lg:px-8" aboutLink />
+
+      {verity.workOrderId && !verity.isOpen && (
+        <button
+          type="button"
+          onClick={verity.open}
+          className="fixed right-4 bottom-4 z-20 inline-flex items-center gap-2 rounded-full border border-verity/50 bg-surface px-4 py-2.5 text-sm font-semibold text-fg shadow-raised transition-colors hover:border-verity sm:right-6 sm:bottom-6"
+        >
+          <VerityOrb size="sm" /> Ask Verity
+        </button>
+      )}
+      {verityLoaded && (
+        <Suspense fallback={null}>
+          <VerityPanel />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -138,6 +178,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
   const { pathname } = useLocation();
   const { system, error } = useSystem();
   const { viewer } = useViewer();
+  const verity = useVerity();
   const role = viewer?.role ?? 'technician';
   const items = NAV.filter((item) => !item.role || item.role === role);
 
@@ -176,6 +217,22 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
               </li>
             );
           })}
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                onNavigate?.();
+                verity.open();
+              }}
+              className="flex w-full items-center gap-3 rounded-control px-3 py-2 text-left text-sm font-semibold text-fg-muted transition-colors hover:bg-verity/10 hover:text-fg"
+            >
+              <VerityOrb size="sm" />
+              <span className="min-w-0">
+                <span className="block">Ask Verity</span>
+                <span className="block text-[11px] font-normal text-verity-fg">Your verification co-pilot</span>
+              </span>
+            </button>
+          </li>
         </ul>
       </nav>
 
@@ -382,10 +439,17 @@ function PageTransition({ children }: { children: ReactNode }) {
   );
 }
 
-function Footer({ className = '', legalLinks = false }: { className?: string; legalLinks?: boolean }) {
+function Footer({ className = '', legalLinks = false, aboutLink = false }: { className?: string; legalLinks?: boolean; aboutLink?: boolean }) {
   return (
     <footer className={`border-t border-line py-5 text-xs text-fg-faint ${className}`}>
       <p>{DISCLAIMER}</p>
+      {aboutLink && (
+        <p className="mt-2">
+          <Link to="/" className="hover:text-fg">
+            About EvidenceLoop
+          </Link>
+        </p>
+      )}
       {legalLinks && (
         <nav aria-label="Legal" className="mt-2 flex gap-4">
           <Link to="/privacy" className="hover:text-fg">Privacy</Link>

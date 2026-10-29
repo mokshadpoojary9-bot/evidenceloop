@@ -67,6 +67,9 @@
   --color-review-fg: var(--el-review-fg);
   --color-dev: var(--el-dev);
   --color-dev-fg: var(--el-dev-fg);
+  /* Verity, the assistant: NVIDIA green, its own accent. */
+  --color-verity: var(--el-verity);
+  --color-verity-fg: var(--el-verity-fg);
 }
 
 @layer base {
@@ -101,6 +104,8 @@
     --el-review-fg: #c4b5fd;
     --el-dev: #e879f9;
     --el-dev-fg: #f5d0fe;
+    --el-verity: #76b900;
+    --el-verity-fg: #a3e635;
     --el-backdrop:
       radial-gradient(1100px 560px at 85% -10%, rgb(118 185 0 / 0.1), transparent 60%),
       radial-gradient(800px 500px at -10% 110%, rgb(56 189 248 / 0.07), transparent 60%);
@@ -136,6 +141,8 @@
     --el-review-fg: #6d28d9;
     --el-dev: #d946ef;
     --el-dev-fg: #a21caf;
+    --el-verity: #76b900;
+    --el-verity-fg: #3f6212;
     --el-backdrop:
       radial-gradient(1100px 560px at 85% -10%, rgb(118 185 0 / 0.08), transparent 60%),
       radial-gradient(800px 500px at -10% 110%, rgb(56 189 248 / 0.06), transparent 60%);
@@ -296,5 +303,25 @@
   }
   to {
     background-position: -200% 0;
+  }
+}
+
+/* Verity's avatar: a softly glowing NVIDIA-green orb. */
+.verity-orb {
+  background: radial-gradient(circle at 35% 30%, #d9f99d 0%, #a3e635 22%, #76b900 55%, #3f6212 100%);
+  box-shadow:
+    0 0 10px rgb(118 185 0 / 0.65),
+    0 0 22px rgb(118 185 0 / 0.3);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .verity-orb {
+    animation: verity-glow 3.2s ease-in-out infinite;
+  }
+}
+@keyframes verity-glow {
+  50% {
+    box-shadow:
+      0 0 14px rgb(118 185 0 / 0.85),
+      0 0 30px rgb(118 185 0 / 0.4);
   }
 }

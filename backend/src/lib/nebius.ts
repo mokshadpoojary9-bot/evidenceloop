@@ -152,3 +152,89 @@ async function httpError(response: Response, model: string): Promise<NebiusError
   if (status >= 500) return new NebiusError(`Nebius server error (${status})${suffix}`, 'UPSTREAM', status);
   return new NebiusError(`Nebius request failed (${status})${suffix}`, 'BAD_REQUEST', status);
 }
+
+export interface StreamOptions {
+  temperature?: number;
+  maxTokens?: number;
+  /** Time to the first byte; the stream itself may take longer. */
+  timeoutMs?: number;
+  /** Ends the request early (e.g. the browser went away). */
+  signal?: AbortSignal;
+  /** Nemotron's reasoning trace; off for fast chat. */
+  thinking?: boolean;
+}
+
+/**
+ * Streams a chat completion as text deltas (OpenAI-compatible server-sent events). Not
+ * retried: a failure before the first delta surfaces as a NebiusError, so the caller can
+ * report 401 / 429 clearly. Reasoning output, if a model sends any, is dropped.
+ */
+export async function* chatStream(
+  config: NebiusConfig,
+  messages: ChatMessage[],
+  options: StreamOptions = {},
+  deps: ChatDeps = {},
+): AsyncGenerator<string> {
+  const doFetch = deps.fetch ?? fetch;
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? 30_000);
+  const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
+  let response: Response;
+  try {
+    response = await doFetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
+      body: JSON.stringify({
+        model: config.model,
+        messages,
+        temperature: options.temperature ?? 0.2,
+        max_tokens: options.maxTokens,
+        stream: true,
+        chat_template_kwargs: { enable_thinking: options.thinking ?? false },
+      }),
+      signal,
+    });
+  } catch (error) {
+    const name = (error as Error | undefined)?.name;
+    if (name === 'TimeoutError' || name === 'AbortError') throw new NebiusError('Nebius request timed out', 'TIMEOUT');
+    throw new NebiusError(`Could not reach Nebius: ${(error as Error)?.message ?? error}`, 'NETWORK');
+  }
+  if (!response.ok) throw await httpError(response, config.model);
+  if (!response.body) throw new NebiusError('Nebius returned an empty stream', 'EMPTY');
+
+  const decoder = new TextDecoder();
+  const reader = response.body.getReader();
+  let buffer = '';
+  let inThink = false;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newline: number;
+      while ((newline = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') return;
+        let delta: string | undefined;
+        try {
+          delta = (JSON.parse(data) as { choices?: { delta?: { content?: string | null } }[] }).choices?.[0]?.delta?.content ?? undefined;
+        } catch {
+          continue;
+        }
+        if (!delta) continue;
+        // Some deployments inline the reasoning trace as <think>…</think>; never show it.
+        let text = '';
+        for (const part of delta.split(/(<\/?think>)/)) {
+          if (part === '<think>') inThink = true;
+          else if (part === '</think>') inThink = false;
+          else if (!inThink) text += part;
+        }
+        if (text) yield text;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

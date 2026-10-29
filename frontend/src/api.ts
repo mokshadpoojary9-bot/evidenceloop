@@ -151,6 +151,48 @@ async function send(path: string, init: RequestInit = {}): Promise<Response> {
   return response;
 }
 
+export interface VerityTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Asks Verity and streams the answer: `onDelta` gets each piece of text as it arrives.
+ * Errors before the stream starts (sign-in, limits, AI unavailable) arrive as ApiError.
+ */
+export async function askVerity(
+  body: { messages: VerityTurn[]; workOrderId: string | null },
+  onDelta: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await send('/api/assistant', { method: 'POST', body: JSON.stringify(body), signal });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) throw new ApiError('Your session has expired. Sign in again to ask Verity.', 401, error.code);
+    throw error;
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new ApiError('Verity sent an empty answer.', 502);
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buffer += decoder.decode(value, { stream: !done });
+    let newline: number;
+    while ((newline = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (!line) continue;
+      const event = JSON.parse(line) as { type: 'delta'; text: string } | { type: 'done' } | { type: 'error'; message: string };
+      if (event.type === 'delta') onDelta(event.text);
+      else if (event.type === 'error') throw new ApiError(event.message, 502);
+      else return;
+    }
+    if (done) return;
+  }
+}
+
 /** A form upload that reports progress (fetch cannot), as a fraction 0–1. */
 async function upload<T>(path: string, form: FormData, onProgress?: (fraction: number) => void): Promise<T> {
   const headers = await authHeaders(new Headers());

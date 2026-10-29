@@ -33,6 +33,8 @@ const schema = z.object({
     z.url().default('https://api.tokenfactory.nebius.com/v1'),
   ),
   NEBIUS_MODEL: optionalString,
+  // Fast chat model for the Verity assistant. Verification keeps NEBIUS_MODEL (vision).
+  NEBIUS_ASSISTANT_MODEL: z.preprocess(blankToUndefined, z.string().trim().default('nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B')),
 
   // DEV ONLY. Enables the deterministic fixture that stands in for AI when Nebius is not configured.
   DEV_FIXTURE_AI: flag,

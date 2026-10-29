@@ -38,3 +38,6 @@ services:
         value: https://api.tokenfactory.nebius.com/v1
       - key: NEBIUS_MODEL
         sync: false
+      # Verity, the assistant: fast chat model (verification keeps NEBIUS_MODEL).
+      - key: NEBIUS_ASSISTANT_MODEL
+        value: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B
