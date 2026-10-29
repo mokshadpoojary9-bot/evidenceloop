@@ -571,6 +571,7 @@ With no Supabase credentials the backend runs in **local mode**. Data and upload
    signs them in. When the frontend is deployed, add its URL the same way
    (`https://<your-app>.vercel.app/**`) and make it the Site URL.
 6. Run `npm run check:supabase`. Every line must say PASS.
+7. **Google sign-in (optional):** in Google Cloud create an OAuth client (Web) with redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`, then paste its Client ID and Secret under **Authentication → Sign In / Providers → Google**; it returns to `/auth/callback`, covered by the `<origin>/**` Redirect URLs above.
 
 Supabase's built-in email sender is rate-limited (a few emails per hour) and meant for testing.
 Configure custom SMTP under **Authentication → Emails** before real users sign up.

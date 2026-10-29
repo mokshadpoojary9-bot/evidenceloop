@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth';
 import { useSystem } from '../hooks';
 import { useTheme } from '../lib/theme';
@@ -117,7 +117,7 @@ export function PublicLayout() {
           <Outlet key={viewer?.id ?? 'signed-out'} />
         </PageTransition>
       </main>
-      <Footer />
+      <Footer legalLinks />
     </div>
   );
 }
@@ -169,6 +169,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
           <p className="eyebrow">System</p>
           <SystemChips system={system} error={error} />
         </div>
+        <SignedInUser />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
           <RoleControl />
           <span className="flex items-center gap-1">
@@ -253,14 +254,54 @@ function RoleControl() {
   );
 }
 
+/** The Supabase user: name and avatar from Google when present, otherwise the email address. */
+function SignedInUser() {
+  const { session } = useAuth();
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  if (!session) return null;
+  const { email, user_metadata: meta = {} } = session.user;
+  const name = [meta.full_name, meta.name].find((value): value is string => typeof value === 'string' && value.trim() !== '');
+  const avatar = [meta.avatar_url, meta.picture].find((value): value is string => typeof value === 'string' && value.startsWith('https://'));
+  const label = name ?? email ?? 'Signed in';
+  return (
+    <div className="flex items-center gap-2.5 border-t border-line pt-4">
+      {avatar && !avatarFailed ? (
+        <img
+          src={avatar}
+          alt=""
+          width={32}
+          height={32}
+          referrerPolicy="no-referrer"
+          onError={() => setAvatarFailed(true)}
+          className="size-8 shrink-0 rounded-full border border-line"
+        />
+      ) : (
+        <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-3 text-sm font-bold text-fg">
+          {label.charAt(0).toUpperCase()}
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-fg">{label}</span>
+        {name && email && <span className="block truncate text-xs text-fg-subtle">{email}</span>}
+      </span>
+    </div>
+  );
+}
+
+/** Clears the Supabase session and returns to the landing page. */
 function SignOut({ compact = false }: { compact?: boolean }) {
   const auth = useAuth();
+  const navigate = useNavigate();
   if (!auth.session) return null;
   return (
     <Button
       variant="ghost"
       size={compact ? 'icon' : 'sm'}
-      onClick={() => void auth.signOut()}
+      onClick={() => {
+        // Leave the protected page first, so it does not bounce to sign-in on the way out.
+        void navigate('/', { replace: true });
+        void auth.signOut();
+      }}
       title={auth.session.user.email}
       aria-label="Sign out"
     >
@@ -290,10 +331,16 @@ function PageTransition({ children }: { children: ReactNode }) {
   );
 }
 
-function Footer({ className = '' }: { className?: string }) {
+function Footer({ className = '', legalLinks = false }: { className?: string; legalLinks?: boolean }) {
   return (
     <footer className={`border-t border-line py-5 text-xs text-fg-faint ${className}`}>
       <p>{DISCLAIMER}</p>
+      {legalLinks && (
+        <nav aria-label="Legal" className="mt-2 flex gap-4">
+          <Link to="/privacy" className="hover:text-fg">Privacy</Link>
+          <Link to="/terms" className="hover:text-fg">Terms</Link>
+        </nav>
+      )}
     </footer>
   );
 }

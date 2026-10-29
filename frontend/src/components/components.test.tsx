@@ -34,6 +34,7 @@ const authMock = vi.hoisted(() => ({
   session: null,
   signIn: vi.fn(),
   signUp: vi.fn(),
+  signInWithGoogle: vi.fn(),
   signOut: vi.fn(),
 }));
 vi.mock('../auth', () => ({ useAuth: () => authMock }));
@@ -175,7 +176,7 @@ describe('EvidenceViewer', () => {
 describe('Login', () => {
   const fill = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.type(screen.getByLabelText('Email'), 'tech@example.com');
-    await user.type(screen.getByLabelText('Password'), 'secret-password');
+    await user.type(screen.getByLabelText('Password'), 'secret-password1');
   };
 
   it('tells a new user to confirm their email after sign-up', async () => {
@@ -186,8 +187,8 @@ describe('Login', () => {
     await fill(user);
     await user.click(screen.getByRole('button', { name: 'Sign up' }));
 
-    expect(authMock.signUp).toHaveBeenCalledWith('tech@example.com', 'secret-password');
-    expect(screen.getByRole('heading', { name: 'Check your email' })).toBeTruthy();
+    expect(authMock.signUp).toHaveBeenCalledWith('tech@example.com', 'secret-password1');
+    expect(screen.getByRole('heading', { name: 'Check your email to confirm your account' })).toBeTruthy();
     expect(screen.getByText('tech@example.com')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Back to sign in' }));
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeTruthy();
@@ -200,6 +201,36 @@ describe('Login', () => {
     await fill(user);
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(screen.getByText('Your email address is not confirmed yet.')).toBeTruthy();
+  });
+
+  it('checks the email and the new password inline before signing up', async () => {
+    authMock.signUp.mockReset();
+    const user = userEvent.setup();
+    render(<MemoryRouter><Login /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: /Need an account/ }));
+    await user.type(screen.getByLabelText('Email'), 'not-an-email');
+    await user.type(screen.getByLabelText('Password'), 'short');
+    await user.click(screen.getByRole('button', { name: 'Sign up' }));
+
+    expect(authMock.signUp).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Email').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText(/Enter a valid email address/)).toBeTruthy();
+    expect(screen.getByText('Use at least 8 characters.')).toBeTruthy();
+
+    await user.clear(screen.getByLabelText('Password'));
+    await user.type(screen.getByLabelText('Password'), 'longenough');
+    await user.click(screen.getByRole('button', { name: 'Sign up' }));
+    expect(screen.getByText('Include at least one number.')).toBeTruthy();
+    expect(authMock.signUp).not.toHaveBeenCalled();
+  });
+
+  it('starts Google sign-in with the requested return address', async () => {
+    authMock.signInWithGoogle.mockReset().mockResolvedValue(null);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/login?next=%2Fwork-orders']}><Login /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'Continue with Google' }));
+    expect(authMock.signInWithGoogle).toHaveBeenCalledWith('/work-orders');
+    expect(screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')).toBe('/privacy');
   });
 });
 

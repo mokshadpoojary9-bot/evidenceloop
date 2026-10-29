@@ -2,8 +2,10 @@ import { MotionConfig } from 'framer-motion';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AuthProvider, RequireAuth } from './auth';
 import { AppLayout, PublicLayout } from './components/AppShell';
+import { AuthCallback } from './components/AuthCallback';
 import { Dashboard } from './components/Dashboard';
 import { Landing } from './components/Landing';
+import { PrivacyPage, TermsPage } from './components/Legal';
 import { Login } from './components/Login';
 import { WakingBanner } from './components/SystemStatus';
 import { ToastProvider } from './components/ui';
@@ -25,6 +27,9 @@ export function App() {
                 <Route element={<PublicLayout />}>
                   <Route index element={<Landing />} />
                   <Route path="login" element={<Login />} />
+                  <Route path="auth/callback" element={<AuthCallback />} />
+                  <Route path="privacy" element={<PrivacyPage />} />
+                  <Route path="terms" element={<TermsPage />} />
                 </Route>
                 <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
                   <Route path="dashboard" element={<Dashboard />} />
