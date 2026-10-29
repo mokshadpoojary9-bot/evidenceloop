@@ -1,3 +1,4 @@
+import { setCacheScope } from './lib/cache';
 import { supabase } from './lib/supabase';
 import type {
   AddRequirementsInput,
@@ -27,6 +28,8 @@ const BASE_URL = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '
 let demoRole: Role | null = null;
 export const setDemoRole = (role: Role | null) => {
   demoRole = role;
+  // Local mode: the two demo users see different data, so each has its own cache.
+  if (role) setCacheScope(`local-${role}`);
 };
 
 export class ApiError extends Error {

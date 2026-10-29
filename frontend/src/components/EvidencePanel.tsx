@@ -203,7 +203,10 @@ export function UploadStatus({ state, onRetry, onDismiss }: { state: UploadState
     return (
       <div role="status" className="space-y-1 text-xs text-fg-muted">
         <p className="flex justify-between gap-2">
-          <span className="truncate">Uploading {state.fileName}…</span>
+          <span className="truncate">
+            {/* Every byte sent: the server is storing and checking the file. */}
+            {state.progress >= 1 ? `Saving ${state.fileName} on the server…` : `Uploading ${state.fileName}…`}
+          </span>
           <span className="tabular-nums">{Math.round(state.progress * 100)}%</span>
         </p>
         <ProgressBar value={state.progress} label={`Uploading ${state.fileName}`} />

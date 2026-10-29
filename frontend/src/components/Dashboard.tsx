@@ -18,6 +18,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '../api';
 import { useLiveRefresh, useSystem } from '../hooks';
+import { fetchCached, readCache } from '../lib/cache';
+import { CACHE_KEYS } from '../lib/prefetch';
 import { DASHBOARD_BUCKETS, EVIDENCE_KIND_LABELS, type DashboardBucket, type DashboardData } from '../types';
 import { useViewer } from '../viewer';
 import { EVIDENCE_ICON, formatDate, formatRelative } from './labels';
@@ -39,11 +41,12 @@ export function Dashboard() {
   const { system, error: systemError } = useSystem();
   const { viewer } = useViewer();
   const isReviewer = viewer?.role === 'reviewer';
-  const [data, setData] = useState<DashboardData | null>(null);
+  // The last data shows at once on a revisit; the request below refreshes it.
+  const [data, setData] = useState<DashboardData | null>(() => readCache<DashboardData>(CACHE_KEYS.dashboard) ?? null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    api.dashboard().then(
+    fetchCached(CACHE_KEYS.dashboard, api.dashboard).then(
       (next) => {
         setData(next);
         setError(null);

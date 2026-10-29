@@ -163,6 +163,8 @@ create index if not exists analysis_runs_work_order_idx on public.analysis_runs 
 create index if not exists evidence_requests_work_order_idx on public.evidence_requests (work_order_id, created_at);
 create index if not exists audit_events_work_order_idx on public.audit_events (work_order_id, created_at);
 create index if not exists reviews_work_order_idx on public.reviews (work_order_id, submitted_at);
+-- Startup recovery looks for runs a restart cut off.
+create index if not exists analysis_runs_running_idx on public.analysis_runs (started_at) where status = 'RUNNING';
 -- At most one pending review per work order.
 create unique index if not exists reviews_one_pending_idx on public.reviews (work_order_id) where status = 'PENDING';
 

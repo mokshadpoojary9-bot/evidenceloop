@@ -1,10 +1,11 @@
 import { Inbox, ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, Navigate } from 'react-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { api } from '../api';
 import { useLiveRefresh } from '../hooks';
+import { fetchCached, readCache } from '../lib/cache';
+import { CACHE_KEYS } from '../lib/prefetch';
 import { QUEUE_REASONS, type QueueReason, type ReviewQueueItem } from '../types';
-import { useViewer } from '../viewer';
 import { formatDate, formatRelative, REQUIREMENT_STATUS } from './labels';
 import { DecisionForm } from './ReviewPanel';
 import { Badge, Button, Card, EmptyState, ErrorState, Loading, PageHeader, Skeleton, type Tone } from './ui';
@@ -19,29 +20,14 @@ const REASON: Record<QueueReason, { label: string; tone: Tone }> = {
 
 type Filter = 'all' | QueueReason;
 
-/** Reviewer pages only. The backend refuses technicians too; this keeps them out of a dead end. */
-export function ReviewerOnly({ children }: { children: ReactNode }) {
-  const { viewer } = useViewer();
-  if (!viewer) return <p role="status" className="p-10 text-center text-fg-subtle">Loading…</p>;
-  if (viewer.role !== 'reviewer') return <Navigate to="/dashboard" replace />;
-  return children;
-}
-
-/** After sign-in without a return address: technicians to their dashboard, reviewers to the queue. */
-export function RoleHome() {
-  const { viewer } = useViewer();
-  if (!viewer) return <p role="status" className="p-10 text-center text-fg-subtle">Loading…</p>;
-  return <Navigate to={viewer.role === 'reviewer' ? '/review' : '/dashboard'} replace />;
-}
-
 /** The reviewer's queue: everything the evidence could not settle, across all technicians. */
 export function ReviewQueue() {
-  const [items, setItems] = useState<ReviewQueueItem[] | null>(null);
+  const [items, setItems] = useState<ReviewQueueItem[] | null>(() => readCache<ReviewQueueItem[]>(CACHE_KEYS.reviewQueue) ?? null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
 
   const load = useCallback(() => {
-    api.reviewQueue().then(
+    fetchCached(CACHE_KEYS.reviewQueue, api.reviewQueue).then(
       (next) => {
         setItems(next);
         setError(null);

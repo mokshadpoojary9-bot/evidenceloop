@@ -1,6 +1,8 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
+import { clearCache, setCacheScope } from './lib/cache';
+import { prefetchHome } from './lib/prefetch';
 import { loginPath, oauthRedirectTo } from './lib/returnTo';
 import { supabase } from './lib/supabase';
 
@@ -45,10 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase) return;
     void supabase.auth.getSession().then(({ data }) => {
+      // Cached page data belongs to this user only.
+      setCacheScope(data.session?.user.id ?? null);
       setSession(data.session);
       setLoading(false);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      setCacheScope(next?.user.id ?? null);
+      setSession(next);
+      if (event === 'SIGNED_IN') prefetchHome();
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -81,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signOut: async () => {
         if (!supabase) return;
+        clearCache();
         // If the server cannot be reached, still forget the session in this browser.
         const { error } = await supabase.auth.signOut();
         if (error) await supabase.auth.signOut({ scope: 'local' });

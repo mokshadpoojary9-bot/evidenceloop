@@ -53,6 +53,16 @@ async function wakeBackend(): Promise<boolean> {
   return false;
 }
 
+/** The keep-alive target an external pinger calls so the free Render instance does not sleep. */
+async function checkPing() {
+  try {
+    const res = await get(`${backend}/health/ping`);
+    record('keep-alive /health/ping', res.ok && (await res.text()) === 'ok', `HTTP ${res.status}`);
+  } catch (error) {
+    record('keep-alive /health/ping', false, (error as Error).message);
+  }
+}
+
 async function checkSystem() {
   try {
     const res = await get(`${backend}/api/system`);
@@ -137,7 +147,7 @@ async function checkFrontend() {
 }
 
 if (await wakeBackend()) {
-  await Promise.all([checkSystem(), checkReadiness(), checkCors()]);
+  await Promise.all([checkPing(), checkSystem(), checkReadiness(), checkCors()]);
 }
 await checkFrontend();
 

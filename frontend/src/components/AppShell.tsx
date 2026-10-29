@@ -15,7 +15,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth';
 import { useSystem } from '../hooks';
@@ -23,7 +23,7 @@ import { useTheme } from '../lib/theme';
 import { DISCLAIMER, type Role } from '../types';
 import { useViewer } from '../viewer';
 import { AiPill, SystemChips } from './SystemStatus';
-import { Badge, Button, Select } from './ui';
+import { Badge, Button, Loading, Select, Skeleton } from './ui';
 
 // Two layouts: the public pages (landing, sign-in) keep a top bar so the hero can use the
 // full width; the signed-in app has a sidebar on desktop and a drawer on mobile.
@@ -87,7 +87,9 @@ export function AppLayout() {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
         <PageTransition>
           {/* Remount pages when the acting user changes, so everything is re-fetched for that role. */}
-          <Outlet key={viewer?.id ?? 'signed-out'} />
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet key={viewer?.id ?? 'signed-out'} />
+          </Suspense>
         </PageTransition>
       </main>
 
@@ -122,7 +124,9 @@ export function PublicLayout() {
       </header>
       <main id="main" tabIndex={-1} className="flex-1 pb-12 outline-none">
         <PageTransition>
-          <Outlet key={viewer?.id ?? 'signed-out'} />
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet key={viewer?.id ?? 'signed-out'} />
+          </Suspense>
         </PageTransition>
       </main>
       <Footer legalLinks />
@@ -333,6 +337,27 @@ function SignOut({ compact = false }: { compact?: boolean }) {
     >
       <LogOut className="size-4" aria-hidden /> {!compact && 'Sign out'}
     </Button>
+  );
+}
+
+/** While a page's code loads: the shell is already there, the page area shows its outline. */
+function PageSkeleton() {
+  return (
+    <Loading label="Loading…">
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {[0, 1, 2, 3, 4].map((k) => (
+            <Skeleton key={k} className="h-28 rounded-card" />
+          ))}
+        </div>
+        <Skeleton className="h-64 rounded-card" />
+      </div>
+    </Loading>
   );
 }
 

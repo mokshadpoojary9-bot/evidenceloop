@@ -333,6 +333,45 @@ export function createEngine(db: Db, provider: AiProvider | null): Engine {
   return { available: provider !== null, start, whenIdle };
 }
 
+export const INTERRUPTED_RUN = 'The server restarted while this run was in progress. Run verification again.';
+
+/**
+ * In-flight runs live in memory, so a restart (a Render deploy or sleep) cuts them off and
+ * would leave their work orders stuck in ANALYZING. On startup, fail every run still marked
+ * RUNNING exactly as a failed run is handled: decisions unchanged, requirements back to their
+ * last recorded assessment (or NOT_PROVEN when there is none), and an audit event.
+ */
+export async function recoverInterruptedRuns(db: Db): Promise<number> {
+  const runs = await db.list('analysis_runs', { status: 'RUNNING' });
+  for (const run of runs) {
+    const requirements = await db.list('requirements', { workOrderId: run.workOrderId }, 'position');
+    for (const requirement of requirements) {
+      if (requirement.status !== 'ANALYZING') continue;
+      const assessment = requirement.currentAssessmentId ? await db.get('assessments', requirement.currentAssessmentId) : null;
+      requirement.status = assessment?.status ?? 'NOT_PROVEN';
+      await db.update('requirements', requirement.id, { status: requirement.status, updatedAt: now() });
+    }
+    const workOrder = await db.get('work_orders', run.workOrderId);
+    if (workOrder?.status === 'ANALYZING') {
+      const assessed = requirements.some((requirement) => requirement.currentAssessmentId !== null);
+      await db.update('work_orders', workOrder.id, {
+        status: assessed ? overallStatus(requirements) : 'AWAITING_EVIDENCE',
+        updatedAt: now(),
+      });
+    }
+    await db.update('analysis_runs', run.id, { status: 'FAILED', error: INTERRUPTED_RUN, completedAt: now() });
+    await audit(db, {
+      workOrderId: run.workOrderId,
+      runId: run.id,
+      actor: 'system',
+      type: 'ANALYSIS_FAILED',
+      summary: `Verification run failed; no requirement status was changed. ${INTERRUPTED_RUN}`,
+      data: { error: INTERRUPTED_RUN },
+    });
+  }
+  return runs.length;
+}
+
 /**
  * Which requirements a run assesses. A manual run assesses all of them. New evidence
  * re-assesses only the requirements it affects: those named by the request it answers,

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { api } from '../api';
 import { useLiveRefresh, useSystem } from '../hooks';
+import { fetchCached, readCache } from '../lib/cache';
+import { CACHE_KEYS } from '../lib/prefetch';
 import { DEFAULT_QUERY, queryWorkOrders, type SortOrder, type StatusFilter } from '../lib/workOrderQuery';
 import { WORK_ORDER_STATUSES, type WorkOrderSummary } from '../types';
 import { REQUIREMENT_STATUS, WORK_ORDER_STATUS, formatDate } from './labels';
@@ -24,7 +26,9 @@ export function WorkOrderList() {
   const { system } = useSystem();
   const { viewer } = useViewer();
   const isReviewer = viewer?.role === 'reviewer';
-  const [workOrders, setWorkOrders] = useState<WorkOrderSummary[] | null>(null);
+  const [workOrders, setWorkOrders] = useState<WorkOrderSummary[] | null>(
+    () => readCache<WorkOrderSummary[]>(CACHE_KEYS.workOrders) ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
@@ -37,7 +41,7 @@ export function WorkOrderList() {
   const filtered = query.search !== '' || query.status !== 'active';
 
   const load = useCallback(() => {
-    api.listWorkOrders().then(
+    fetchCached(CACHE_KEYS.workOrders, api.listWorkOrders).then(
       (list) => {
         setWorkOrders(list);
         setError(null);

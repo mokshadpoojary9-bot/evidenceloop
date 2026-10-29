@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
 import type { Engine } from './agent/engine.js';
@@ -34,6 +35,15 @@ export function createApp({ db, files, engine, ai, supabase, system, corsOrigins
   const app = express();
 
   app.disable('x-powered-by');
+
+  // Keep-alive target for an external pinger (Render's free tier sleeps when idle). Tiny, no
+  // database, no auth, never cached, registered before everything else.
+  app.get('/health/ping', (_req, res) => {
+    res.set('Cache-Control', 'no-store').type('text/plain').send('ok');
+  });
+
+  // gzip for JSON responses; small bodies are left alone.
+  app.use(compression());
   app.use(cors({ origin: corsOrigins }));
   app.use(express.json({ limit: '1mb' }));
 

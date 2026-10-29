@@ -6,7 +6,8 @@ import { summary, system } from '../test/fixtures';
 import type { AuditLogEntry, ReviewQueueItem, Viewer } from '../types';
 import { AppLayout } from './AppShell';
 import { AuditLog } from './AuditLog';
-import { ReviewerOnly, ReviewQueue, RoleHome } from './ReviewQueue';
+import { ReviewQueue } from './ReviewQueue';
+import { ReviewerOnly, RoleHome } from './RoleRoutes';
 
 // Technicians and reviewers get separate workspaces. The role always comes from the API.
 

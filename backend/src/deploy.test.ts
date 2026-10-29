@@ -60,6 +60,24 @@ describe('CORS_ORIGIN', () => {
   });
 });
 
+describe('GET /health/ping', () => {
+  it('answers a keep-alive pinger with a tiny uncached reply, no auth or database needed', async () => {
+    const res = await request(app([])).get('/health/ping');
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('ok');
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+});
+
+describe('compression', () => {
+  it('gzips JSON responses for clients that accept it', async () => {
+    const res = await request(app([])).get('/api/templates').set('Accept-Encoding', 'gzip');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-encoding']).toBe('gzip');
+    expect(Array.isArray(res.body.templates)).toBe(true);
+  });
+});
+
 describe('GET /api/health/ready', () => {
   const check = (ok: boolean) => ({ ok, detail: ok ? 'fine' : 'broken' });
   const report = (ok: boolean): ReadinessReport => ({

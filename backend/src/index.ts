@@ -1,24 +1,23 @@
-import { join } from 'node:path';
-import { createEngine } from './agent/engine.js';
+import { createEngine, recoverInterruptedRuns } from './agent/engine.js';
 import { createAiProvider, describeAi, verifyLiveAi } from './ai/index.js';
 import { createApp } from './app.js';
 import { corsOrigins, env } from './config/env.js';
 import { supabase } from './lib/supabase.js';
 import { createReadiness } from './readiness.js';
-import { LocalFileStore, SupabaseFileStore } from './stores/fileStore.js';
-import { LocalDb } from './stores/localDb.js';
-import { SupabaseDb } from './stores/supabaseDb.js';
+import { selectStores } from './stores/select.js';
 import type { SystemStatus } from './types.js';
 
-const db = supabase ? new SupabaseDb(supabase) : new LocalDb(join(env.LOCAL_DATA_DIR, 'db.json'));
-const files = supabase
-  ? new SupabaseFileStore(supabase, env.SUPABASE_STORAGE_BUCKET)
-  : new LocalFileStore(join(env.LOCAL_DATA_DIR, 'uploads'));
+const { db, files, persistence } = selectStores({
+  nodeEnv: env.NODE_ENV,
+  supabase,
+  bucket: env.SUPABASE_STORAGE_BUCKET,
+  localDataDir: env.LOCAL_DATA_DIR,
+});
 
 const system: SystemStatus = {
   status: 'ok',
   ai: describeAi(),
-  persistence: supabase ? 'supabase' : 'local',
+  persistence,
   auth: supabase ? 'supabase' : 'disabled',
   maxUploadMb: env.MAX_UPLOAD_MB,
 };
@@ -49,3 +48,9 @@ if (system.ai.mode === 'nebius') {
     (error: unknown) => console.error('  ai live test crashed:', error instanceof Error ? error.message : error),
   );
 }
+
+// Runs cut off by the previous shutdown would otherwise stay ANALYZING forever.
+void recoverInterruptedRuns(db).then(
+  (count) => count > 0 && console.log(`  recovered ${count} verification run(s) interrupted by a restart`),
+  (error: unknown) => console.error('  run recovery failed:', error instanceof Error ? error.message : error),
+);

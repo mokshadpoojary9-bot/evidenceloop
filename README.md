@@ -718,7 +718,8 @@ Save.
 npm run smoke -- https://evidenceloop-api-xxxx.onrender.com https://<project>.vercel.app
 ```
 
-Waits up to two minutes for a sleeping backend, then prints a pass/fail table: health, Nemotron
+Waits up to two minutes for a sleeping backend, then prints a pass/fail table: health, the
+`/health/ping` keep-alive, Nemotron
 configured and live-tested, Supabase persistence and auth, database reachable, private evidence
 bucket, ffmpeg, PDF extraction, CORS preflight from the Vercel origin, the frontend and an SPA deep
 link, and whether the bundle points at this backend. It uses public endpoints only, so it needs no
@@ -734,6 +735,23 @@ keys and prints none. Exit code 0 means everything passed.
    verification, so use a second account for it (e.g. `you+reviewer@…`): sign it up, then in the
    SQL editor:
    `insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'you+reviewer@example.com' on conflict (id) do update set role = excluded.role;`
+
+### Keep the backend awake (optional, free)
+
+`GET /health/ping` answers `ok` without touching the database. Ping it every 10 minutes so the
+free Render instance does not sleep: on [cron-job.org](https://cron-job.org) create a cron job
+with that URL (e.g. `https://evidenceloop.onrender.com/health/ping`), schedule *every 10
+minutes*, request method GET. Free Render instances get 750 hours a month, enough for one
+service running all the time.
+
+### Persistence
+
+With Supabase every work order, requirement, evidence file (private Storage bucket),
+assessment, request, review and audit event is in the database, so it survives reloads,
+sign-out and restarts; production refuses to start without it (`stores/select.ts`). Only a
+verification run *in progress* lives in memory: if the server restarts mid-run, startup marks
+that run failed (decisions unchanged, audit event recorded) so nothing stays stuck in
+*Analyzing*; run verification again.
 
 ## License
 

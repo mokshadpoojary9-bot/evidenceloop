@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { api, serverWake } from './api';
 import { useToast } from './components/ui';
+import { fetchCached, readCache } from './lib/cache';
+import { CACHE_KEYS } from './lib/prefetch';
 import { supabase } from './lib/supabase';
 import type { EvidenceKind, ReanalysisOutcome, SystemStatus, WorkOrderDetail } from './types';
 
@@ -65,14 +67,14 @@ export const realtimeAvailable = supabase !== null;
  * Polling pauses while the tab is hidden.
  */
 export function useWorkOrder(id: string) {
-  const [detail, setDetail] = useState<WorkOrderDetail | null>(null);
+  const [detail, setDetail] = useState<WorkOrderDetail | null>(() => readCache<WorkOrderDetail>(CACHE_KEYS.workOrder(id)) ?? null);
   const [error, setError] = useState<string | null>(null);
   const latest = useRef(0);
 
   const refresh = useCallback(async () => {
     const ticket = ++latest.current;
     try {
-      const next = await api.getWorkOrder(id);
+      const next = await fetchCached(CACHE_KEYS.workOrder(id), () => api.getWorkOrder(id));
       if (ticket === latest.current) {
         setDetail(next);
         setError(null);
@@ -83,9 +85,10 @@ export function useWorkOrder(id: string) {
   }, [id]);
 
   useEffect(() => {
-    setDetail(null);
+    // Another work order: show its last data at once (if any) while the fresh copy loads.
+    setDetail(readCache<WorkOrderDetail>(CACHE_KEYS.workOrder(id)) ?? null);
     void refresh();
-  }, [refresh]);
+  }, [id, refresh]);
 
   const analyzing =
     detail?.workOrder.status === 'ANALYZING' ||
