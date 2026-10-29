@@ -1,29 +1,12 @@
-import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Eye, MessageSquareWarning, ScanSearch, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useSystem } from '../hooks';
 import { type HeroMotion, STATIONS, stationAt } from '../lib/evidenceLoop';
+import { LoopFlashcards } from './LoopFlashcards';
 import { LoopVisual } from './LoopVisual';
 import { AiBanner } from './SystemStatus';
-
-const LOOP_STEPS = [
-  'Work order',
-  'Retrieve requirements',
-  'Build checklist',
-  'Analyze multimodal evidence',
-  'Map evidence to requirements',
-  'Check proof',
-  'Detect uncertainty',
-  'Detect contradictions',
-  'Identify missing evidence',
-  'Plan minimum request',
-  'Request evidence',
-  'New evidence',
-  'Re-analyze',
-  'Final verification',
-  'Audit trail',
-];
 
 const PRINCIPLES = [
   {
@@ -61,16 +44,7 @@ export function Landing() {
         <h2 id="loop-heading" className="eyebrow">
           The verification loop
         </h2>
-        <ol className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm">
-          {LOOP_STEPS.map((label, index) => (
-            <li key={label} className="flex items-center gap-1.5">
-              <span className="rounded-lg border border-line bg-surface px-2.5 py-1 font-medium text-fg">
-                {label}
-              </span>
-              {index < LOOP_STEPS.length - 1 && <ArrowRight className="size-3.5 text-fg-faint" aria-hidden />}
-            </li>
-          ))}
-        </ol>
+        <LoopFlashcards />
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -90,6 +64,55 @@ export function Landing() {
         ))}
       </section>
     </div>
+  );
+}
+
+/** The hero's second line, in rotation. The first is the one screen readers and reduced motion get. */
+export const HEADLINE_LINES = [
+  "Don't just trust the photo.",
+  'Every requirement, proven.',
+  'Missing evidence, requested.',
+  'Powered by NVIDIA Nemotron.',
+  'Reviewed. Audited. Verified.',
+];
+const HEADLINE_MS = 2800;
+
+/**
+ * The line under "Prove the work.": every ~2.8 s the old line slides up and fades out while
+ * the next slides up from below. Its height is fixed at two lines so nothing below moves;
+ * hovering pauses it; with reduced motion it stays on the first line.
+ */
+function RotatingLine() {
+  const reduceMotion = useReducedMotion();
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (reduceMotion || paused) return;
+    const timer = setInterval(() => setIndex((value) => (value + 1) % HEADLINE_LINES.length), HEADLINE_MS);
+    return () => clearInterval(timer);
+  }, [reduceMotion, paused]);
+
+  const line = HEADLINE_LINES[reduceMotion ? 0 : index]!;
+  return (
+    <span
+      className="relative block h-[2.08em] overflow-hidden"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <AnimatePresence initial={false}>
+        <motion.span
+          key={line}
+          initial={{ y: '100%', opacity: 0 }}
+          animate={{ y: '0%', opacity: 1 }}
+          exit={{ y: '-100%', opacity: 0 }}
+          transition={{ duration: 0.55, ease: EASE }}
+          className="absolute inset-x-0 top-0 block bg-gradient-to-r from-slate-200 to-slate-500 bg-clip-text text-transparent"
+        >
+          {line}
+        </motion.span>
+      </AnimatePresence>
+    </span>
   );
 }
 
@@ -191,9 +214,11 @@ function Hero() {
                 id="hero-heading"
                 className="mt-4 text-[2.25rem] leading-[1.04] font-semibold tracking-[-0.035em] text-balance text-fg [text-shadow:0_2px_24px_rgb(0_0_0/0.6)] sm:text-6xl lg:text-7xl"
               >
-                Prove the work.{' '}
-                <span className="bg-gradient-to-r from-slate-200 to-slate-500 bg-clip-text text-transparent">
-                  Don't just trust the photo.
+                {/* Screen readers get one stable sentence; the rotating line is visual only. */}
+                <span className="sr-only">Prove the work. Don't just trust the photo.</span>
+                <span aria-hidden>
+                  <span className="block">Prove the work.</span>
+                  <RotatingLine />
                 </span>
               </h1>
               <p className="mt-3 max-w-md text-[15px] text-fg-muted sm:mt-4 sm:text-lg">
