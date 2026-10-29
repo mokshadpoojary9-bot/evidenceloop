@@ -1,9 +1,11 @@
 import { FileWarning, ImageOff, RotateCcw, X } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { fileUrl } from '../api';
 import { useEvidenceUpload, type UploadState } from '../hooks';
+import type { CaptureInfo, CaptureMode } from '../lib/capture';
 import { EVIDENCE_KINDS, EVIDENCE_KIND_LABELS, type EvidenceKind, type WorkOrderDetail } from '../types';
 import { useViewer } from '../viewer';
+import { CaptureButtons } from './CaptureButtons';
 import { EVIDENCE_ACCEPT, EVIDENCE_ICON, formatBytes, formatRelative } from './labels';
 import { Button, DropZone, Input, ProgressBar, Select } from './ui';
 
@@ -137,13 +139,18 @@ function UploadForm({ workOrderId, maxUploadMb, onUploaded }: FormProps) {
   const [rejected, setRejected] = useState<string | null>(null);
   const { state, start, retry, reset } = useEvidenceUpload(workOrderId, onUploaded);
   const busy = state.phase === 'uploading';
+  const picker = useRef<HTMLInputElement>(null);
 
-  const send = async (file: File) => {
-    const problem = checkFile(file, kind, maxUploadMb);
+  // Captures use the same checks and upload as a chosen file.
+  const send = async (file: File, as: EvidenceKind = kind, capture: CaptureInfo | null = null) => {
+    const problem = checkFile(file, as, maxUploadMb);
     setRejected(problem);
     if (problem) return;
-    if (await start({ file, kind, note, requestId: null })) setNote('');
+    if (await start({ file, kind: as, note, requestId: null, capture })) setNote('');
   };
+  /** A photo is filed under the selected photo type; anything else becomes an additional photo. */
+  const captureKind = (mode: CaptureMode): EvidenceKind =>
+    mode === 'video' ? 'video' : EVIDENCE_ACCEPT[kind] === 'image/*' ? kind : 'additional_photo';
 
   return (
     <div className="mt-4 space-y-3 border-t border-line pt-4">
@@ -178,7 +185,18 @@ function UploadForm({ workOrderId, maxUploadMb, onUploaded }: FormProps) {
         />
       </label>
 
+      <div className="flex flex-wrap gap-2">
+        <CaptureButtons
+          modes={['photo', 'video']}
+          disabled={busy}
+          onBeforeCapture={(mode) => setKind(captureKind(mode))}
+          onCaptured={(file, capture) => void send(file, captureKind(file.type.startsWith('video/') ? 'video' : 'photo'), capture)}
+          onUploadInstead={() => picker.current?.click()}
+        />
+      </div>
+
       <DropZone
+        ref={picker}
         accept={EVIDENCE_ACCEPT[kind]}
         disabled={busy}
         onFile={(file) => void send(file)}

@@ -2,7 +2,9 @@ import { motion } from 'framer-motion';
 import { MessageSquareWarning, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useEvidenceUpload } from '../hooks';
+import type { CaptureInfo } from '../lib/capture';
 import { EVIDENCE_KIND_LABELS, type EvidenceRequest, type Requirement } from '../types';
+import { CaptureButtons } from './CaptureButtons';
 import { checkFile, UploadStatus } from './EvidencePanel';
 import { EVIDENCE_ACCEPT, EVIDENCE_ICON, formatRelative } from './labels';
 import { Button } from './ui';
@@ -65,11 +67,14 @@ function RequestRow({
     .filter((requirement) => request.requirementIds.includes(requirement.id))
     .sort((a, b) => a.position - b.position);
 
-  const send = (file: File) => {
+  const send = (file: File, capture: CaptureInfo | null = null) => {
     const problem = checkFile(file, request.kind, maxUploadMb);
     setRejected(problem);
-    if (!problem) void start({ file, kind: request.kind, note: '', requestId: request.id });
+    if (!problem) void start({ file, kind: request.kind, note: '', requestId: request.id, capture });
   };
+  // The camera can answer photo and video requests; documents and audio are uploaded as files.
+  const accept = EVIDENCE_ACCEPT[request.kind];
+  const captureModes = accept === 'image/*' ? (['photo'] as const) : accept === 'video/*' ? (['video'] as const) : [];
 
   return (
     <motion.li
@@ -90,9 +95,18 @@ function RequestRow({
         </div>
         {canUpload ? (
           <>
-            <Button variant="primary" onClick={() => picker.current?.click()} disabled={state.phase === 'uploading'}>
-              <Upload className="size-4" aria-hidden /> Upload {EVIDENCE_KIND_LABELS[request.kind].toLowerCase()}
-            </Button>
+            <span className="flex flex-wrap gap-2">
+              <CaptureButtons
+                modes={[...captureModes]}
+                disabled={state.phase === 'uploading'}
+                label={{ photo: EVIDENCE_KIND_LABELS[request.kind].toLowerCase(), video: 'video' }}
+                onCaptured={send}
+                onUploadInstead={() => picker.current?.click()}
+              />
+              <Button variant="primary" onClick={() => picker.current?.click()} disabled={state.phase === 'uploading'}>
+                <Upload className="size-4" aria-hidden /> Upload {EVIDENCE_KIND_LABELS[request.kind].toLowerCase()}
+              </Button>
+            </span>
             <input
               ref={picker}
               type="file"

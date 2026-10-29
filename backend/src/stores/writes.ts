@@ -82,6 +82,8 @@ export interface AttachEvidenceInput {
   fileName: string;
   mimeType: string;
   data: Buffer;
+  /** Set when the file was taken with the in-app camera (photo or video), not chosen from disk. */
+  capture?: { capturedAt: string | null } | null;
 }
 
 export const safeFileName = (name: string) => name.replace(/[^\w.-]+/g, '_').slice(-120) || 'file';
@@ -135,7 +137,11 @@ export async function attachEvidence(
     workOrderId: workOrder.id,
     actor: `user:${user.id}`,
     type: 'EVIDENCE_UPLOADED',
-    summary: `Evidence uploaded: ${EVIDENCE_KIND_LABELS[evidence.kind]} "${evidence.fileName}"`,
+    summary:
+      `Evidence uploaded: ${EVIDENCE_KIND_LABELS[evidence.kind]} "${evidence.fileName}"` +
+      (input.capture
+        ? ` · Captured in app${input.capture.capturedAt ? ` at ${input.capture.capturedAt} (device time)` : ''}`
+        : ''),
     data: {
       evidenceId: id,
       kind: evidence.kind,
@@ -143,6 +149,7 @@ export async function attachEvidence(
       sizeBytes: evidence.sizeBytes,
       sha256: evidence.sha256,
       requestId: evidence.requestId,
+      ...(input.capture ? { capture: { source: 'in_app_camera', capturedAt: input.capture.capturedAt } } : {}),
       ...(pdf ? { pdf: { pages: pdf.pages, textLayer: pdf.ok } } : {}),
     },
   });

@@ -81,6 +81,9 @@ const uploadFieldsSchema = z.object({
   kind: z.enum(EVIDENCE_KINDS),
   note: z.string().trim().max(1000).default(''),
   requestId: z.preprocess((value) => (value === '' ? undefined : value), z.uuid().optional()),
+  // Taken with the in-app camera. The time is what the device reported, recorded as such.
+  capturedInApp: z.preprocess((value) => value === 'true', z.boolean()).default(false),
+  capturedAt: z.preprocess((value) => (value === '' ? undefined : value), z.iso.datetime().optional()),
 });
 
 const idParam = (value: unknown) => {
@@ -315,6 +318,7 @@ export function createWorkOrdersRouter({ db, files, engine, maxUploadMb }: WorkO
       fileName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
       mimeType: file.mimetype,
       data: file.buffer,
+      capture: fields.capturedInApp ? { capturedAt: fields.capturedAt ?? null } : null,
     });
 
     // New evidence triggers re-evaluation once a first verification run has happened.

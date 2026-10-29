@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { api, serverWake } from './api';
 import { useToast } from './components/ui';
 import { fetchCached, readCache } from './lib/cache';
+import type { CaptureInfo } from './lib/capture';
 import { CACHE_KEYS } from './lib/prefetch';
 import { supabase } from './lib/supabase';
 import type { EvidenceKind, ReanalysisOutcome, SystemStatus, WorkOrderDetail } from './types';
@@ -187,6 +188,8 @@ export interface UploadInput {
   kind: EvidenceKind;
   note: string;
   requestId: string | null;
+  /** Taken with the in-app camera; recorded in the audit trail. */
+  capture?: CaptureInfo | null;
 }
 
 export type UploadState =

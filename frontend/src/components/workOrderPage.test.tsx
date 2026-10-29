@@ -104,7 +104,7 @@ describe('EvidenceRequests', () => {
     await user.upload(screen.getByLabelText(`File for: ${VIDEO_REQUEST}`), file);
     expect(apiMock.uploadEvidence).toHaveBeenCalledWith(
       'wo-1',
-      { file, kind: 'video', note: '', requestId: 'rq-1' },
+      { file, kind: 'video', note: '', requestId: 'rq-1', capture: null },
       expect.any(Function),
     );
     expect(await screen.findByText(/Upload of test.mp4 failed: Network down/)).toBeTruthy();

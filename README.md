@@ -357,6 +357,19 @@ The main demo screen, top to bottom:
   upload with a progress bar and retry. The type and size are checked before uploading too.
 - **Audit trail:** a timeline grouped by verification run, an icon per event, filter by type.
 
+## Camera capture
+
+**Take photo** and **Record video** sit next to Upload in the evidence panel and in each open
+photo or video request. On phones the rear camera app opens directly (`capture="environment"`);
+on laptops a dialog shows a live preview (`getUserMedia`, rear camera preferred) with Capture
+photo, Record/Stop (up to 15 s, with a countdown), Retake and Use this. If the camera is denied
+or missing, it says so and offers a file upload instead; the camera is released whenever the
+dialog closes. Photos are resized to at most 2000 px on the long side (JPEG, quality 0.85).
+Captures go through the same upload (type and size checks, SHA-256, progress, retry,
+re-analysis) and the audit trail records them as *Captured in app* with the device's capture
+time. A phone file older than two minutes (likely picked from the gallery) is uploaded without
+that tag. The dialog's code (`CameraCapture.tsx`) loads only when it is opened.
+
 ## Evidence viewer
 
 Click any evidence file, or any evidence cited in a requirement's observations, to open it in the

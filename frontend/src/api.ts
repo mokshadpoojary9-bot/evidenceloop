@@ -1,4 +1,5 @@
 import { setCacheScope } from './lib/cache';
+import type { CaptureInfo } from './lib/capture';
 import { supabase } from './lib/supabase';
 import type {
   AddRequirementsInput,
@@ -241,13 +242,17 @@ export const api = {
     }),
   uploadEvidence: (
     id: string,
-    input: { file: File; kind: EvidenceKind; note: string; requestId: string | null },
+    input: { file: File; kind: EvidenceKind; note: string; requestId: string | null; capture?: CaptureInfo | null },
     onProgress?: (fraction: number) => void,
   ) => {
     const form = new FormData();
     form.set('kind', input.kind);
     form.set('note', input.note);
     if (input.requestId) form.set('requestId', input.requestId);
+    if (input.capture) {
+      form.set('capturedInApp', 'true');
+      form.set('capturedAt', input.capture.capturedAt);
+    }
     form.set('file', input.file);
     return upload<UploadEvidenceResponse>(`/api/work-orders/${id}/evidence`, form, onProgress);
   },

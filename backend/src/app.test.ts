@@ -668,3 +668,38 @@ describe('dashboard', () => {
     expect(JSON.stringify(body.activity)).not.toMatch(/user:|@/);
   });
 });
+
+describe('evidence captured in app', () => {
+  const { api, create, upload, detail } = setup(new DevFixtureProvider(0));
+  const capture = (id: string, fields: Record<string, string>) => {
+    let req = api.post(`/api/work-orders/${id}/evidence`).field('kind', 'after_photo').field('note', '');
+    for (const [key, value] of Object.entries(fields)) req = req.field(key, value);
+    return req.attach('file', Buffer.from('jpeg bytes'), { filename: 'photo-2026-10-29T10-15-30.jpg', contentType: 'image/jpeg' });
+  };
+
+  it('goes through the same upload path, tagged "Captured in app" with the device time, and re-analyzes', async () => {
+    const id = await create();
+    for (const kind of ['before_photo', 'document', 'additional_photo'] as const) await upload(id, kind);
+    await api.post(`/api/work-orders/${id}/analyze`);
+    await detail(id);
+
+    const res = await capture(id, { capturedInApp: 'true', capturedAt: '2026-10-29T10:15:30.000Z' });
+    expect(res.status).toBe(201);
+    expect(res.body.reanalysis).toBe('started');
+    const d = await detail(id);
+    const event = d.audit.find((e) => e.type === 'EVIDENCE_UPLOADED' && e.data.evidenceId === res.body.evidence.id)!;
+    expect(event.summary).toMatch(/Captured in app at 2026-10-29T10:15:30.000Z \(device time\)/);
+    expect(event.data.capture).toEqual({ source: 'in_app_camera', capturedAt: '2026-10-29T10:15:30.000Z' });
+    expect(event.data.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('does not tag ordinary uploads, and rejects a malformed capture time', async () => {
+    const id = await create();
+    const plain = await capture(id, {});
+    const d = await detail(id);
+    const event = d.audit.find((e) => e.type === 'EVIDENCE_UPLOADED' && e.data.evidenceId === plain.body.evidence.id)!;
+    expect(event.summary).not.toMatch(/Captured in app/);
+    expect(event.data.capture).toBeUndefined();
+    expect((await capture(id, { capturedInApp: 'true', capturedAt: 'yesterday' })).status).toBe(400);
+  });
+});
