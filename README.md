@@ -1,24 +1,10 @@
 <div align="center">
-<img src="docs/screenshots/landing.png" alt="EvidenceLoop" width="100%"/>
 🔍 EvidenceLoop
 Prove the work. Don't just trust the photo.
-An AI agent that verifies whether photos, videos and documents actually prove real-world work was completed.
-<br/>
-![NVIDIA Nemotron](https://img.shields.io/badge/NVIDIA-Nemotron%203.5%20Super%20VL-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
-![Nemotron Nano](https://img.shields.io/badge/NVIDIA-Nemotron%203%20Nano-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
+![NVIDIA Nemotron](https://img.shields.io/badge/NVIDIA-Nemotron-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
 ![Nebius](https://img.shields.io/badge/Nebius-Token%20Factory-1E293B?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-F7DF1E?style=for-the-badge)
-![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![Three.js](https://img.shields.io/badge/Three.js-000000?style=flat-square&logo=threedotjs&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white)
-![Express](https://img.shields.io/badge/Express-000000?style=flat-square&logo=express&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
-![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)
-![Render](https://img.shields.io/badge/Render-46E3B7?style=flat-square&logo=render&logoColor=black)
-<br/>
-🚀 Live Demo  •  🎥 Demo Video  •  📖 Demo Guide
-<sub>Built for the Nebius × NVIDIA Global AI Hackathon · Track: Best Apps and Agents</sub>
+<img src="docs/screenshots/landing.png" alt="EvidenceLoop" width="100%"/>
 </div>
 <br/>
 📖 What is EvidenceLoop?
