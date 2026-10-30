@@ -1,164 +1,204 @@
-EvidenceLoop
+<div align="center">
+<img src="docs/screenshots/landing.png" alt="EvidenceLoop" width="100%"/>
+🔍 EvidenceLoop
 Prove the work. Don't just trust the photo.
-EvidenceLoop is an AI agent that checks whether photos, videos and documents actually prove that real-world work was done. It is powered by NVIDIA Nemotron running on Nebius Token Factory.
-Live demo: https://evidenceloop-phi.vercel.app
-Hackathon: Nebius × NVIDIA Global AI Hackathon, Best Apps and Agents track
-License: MIT
-![EvidenceLoop landing page](docs/screenshots/landing.png)
----
-Table of Contents
-Problem
-Solution
-How It Works
-Features
-How NVIDIA Nemotron Is Used
-Guardrails
-User Roles
-Tech Stack
-Screenshots
-Getting Started
-Try It (for Judges)
-Security
-Roadmap
-Author
----
-1. Problem
-Maintenance and safety jobs, such as replacing an emergency light, are usually approved from a single photo that nobody really checks.
-A photo does not prove the right part was installed, the wiring is done, or that it works.
-Image classifiers only say what is in a picture, not whether the job is complete.
-When proof is missing, workers get vague requests like "send more photos".
-There is no record of why a job was accepted.
----
-2. Solution
-EvidenceLoop checks every requirement of a job against the evidence and asks for exactly what is missing.
-Example: Replace the emergency light in Room 204
-The job has 6 requirements: correct unit, correct location, securely mounted, electrical connection, indicator working, and functional test.
-The technician uploads before and after photos, a close-up and the SOP manual.
-NVIDIA Nemotron checks every file and marks each requirement as Proven, Not proven, Uncertain or Contradicted.
-Where proof is missing, it asks for one specific item: "Upload a 5–10 second video showing the emergency light functional test."
-The technician uploads the video. Only the affected requirements are checked again.
-When everything is proven, the job is Verified.
-A separate reviewer approves it, and a PDF report is created.
----
-3. How It Works
-Step	What happens
-1. Plan	A checklist is created from a template or drafted from an SOP document
-2. Analyze	Nemotron reads the photos, PDF text and video frames together
-3. Guard	Our code checks every AI answer and can only make it more cautious
-4. Request	Missing proof becomes one clear, specific request
-5. Re-analyze	New evidence re-checks only the requirements it affects
-6. Approve	A reviewer signs off, and every step is saved in the audit trail
----
-4. Features
-Feature	Description
-AI verification loop	Plans, checks, requests missing evidence and re-checks automatically
-Multimodal evidence	Supports photos, PDF documents and videos
-Camera capture	Take photos or record videos directly in the app
-Verity assistant	An AI helper that explains results, for example "Why is this not verified?"
-Technician and Reviewer roles	Separate screens; technicians cannot approve their own work
-Google sign-in	Secure login with Google or a verified email
-SOP to requirements	Nemotron reads a manual and drafts the checklist
-Live 3D graph	Shows each requirement changing colour as results arrive
-Audit trail and PDF report	Every action is recorded and can be exported
----
-5. How NVIDIA Nemotron Is Used
-Model	Purpose	Why this model
-Nemotron 3.5 Super VL (`nvidia/Nemotron-3.5-Super-VL`)	Checks the evidence and drafts requirements from SOPs	Understands images and text, reasons carefully and returns structured results
-Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`)	Powers the Verity assistant	Fast and low-cost for quick answers
-What Nemotron receives: the job, all its requirements, the photos, the text from PDF documents, and up to 8 timestamped frames from each video.
-What Nemotron returns for each requirement: a status, what it observed (with the file it came from), its reasoning, a confidence level, and the exact evidence still needed.
-How Nebius Token Factory helped
-The API is OpenAI-compatible, so integration was quick and simple.
-One vision model replaced separate tools for reading text and describing images.
-Switching between the large and small model is a single setting.
-Hosted inference means no GPUs to set up or manage.
----
-6. Guardrails
-The AI suggests a result, and our code makes the final decision.
-A requirement is only Proven if the AI directly observed it in a real uploaded file.
-References to files that do not exist are removed.
-Missing or invalid AI answers are treated as Not proven.
-When proof is not enough, the app clearly says: "I cannot verify this requirement from the available evidence."
-A job is Verified only when every mandatory requirement is proven.
-The Verity assistant can explain results but can never change them.
-> EvidenceLoop supports inspectors. It does not replace official certification or guarantee safety.
----
-7. User Roles
-Action	Technician	Reviewer
-Create jobs and upload evidence	Yes	No
-Run AI verification	Yes	No
-Submit a job for review	Yes	No
-Approve, reject or request more evidence	No	Yes
-View the audit log of all jobs	No	Yes
-Every new account starts as a Technician. A Reviewer is assigned in the database by an administrator.
----
-8. Tech Stack
-Area	Technology
-AI	NVIDIA Nemotron on Nebius Token Factory
-Frontend	React, Vite, TypeScript, Tailwind CSS, React Three Fiber
-Backend	Node.js, Express, TypeScript
-File processing	PDF text extraction and video frame sampling (ffmpeg)
-Database and login	Supabase (database, file storage, Google sign-in)
-Hosting	Vercel (frontend) and Render (backend)
----
-9. Screenshots
-Dashboard
-![Dashboard](docs/screenshots/dashboard.png)
-Work order with the live 3D verification graph
-![Work order](docs/screenshots/work-order.png)
-Evidence viewer
-![Evidence viewer](docs/screenshots/evidence-viewer.png)
----
-10. Getting Started
-Requirements: Node.js 20.12 or newer
-Steps
-Clone the repository: `git clone https://github.com/mokshadpoojary9-bot/evidenceloop.git`
-Open the folder: `cd evidenceloop`
-Install packages: `npm install`
-Copy `backend/.env.example` to `backend/.env` and add your Nebius API key and model name.
-Load the demo data: `npm run seed:demo`
-Start the app: `npm run dev`
+An AI agent that verifies whether photos, videos and documents actually prove real-world work was completed.
+<br/>
+![NVIDIA Nemotron](https://img.shields.io/badge/NVIDIA-Nemotron%203.5%20Super%20VL-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
+![Nemotron Nano](https://img.shields.io/badge/NVIDIA-Nemotron%203%20Nano-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
+![Nebius](https://img.shields.io/badge/Nebius-Token%20Factory-1E293B?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-F7DF1E?style=for-the-badge)
+![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-000000?style=flat-square&logo=threedotjs&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-000000?style=flat-square&logo=express&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)
+![Render](https://img.shields.io/badge/Render-46E3B7?style=flat-square&logo=render&logoColor=black)
+<br/>
+🚀 Live Demo  •  🎥 Demo Video  •  📖 Demo Guide
+<sub>Built for the Nebius × NVIDIA Global AI Hackathon · Track: Best Apps and Agents</sub>
+</div>
+<br/>
+📖 What is EvidenceLoop?
+EvidenceLoop is an AI-powered verification platform for real-world work such as repairs, installations and safety checks.
+When a technician says a job is done, EvidenceLoop checks whether the photos, videos and documents actually prove it. It does not simply look at a picture and say "looks fine". It checks every requirement of the job one by one, explains its decision, and when proof is missing, it asks for exactly the evidence that is needed.
+It is powered by NVIDIA Nemotron models running on Nebius Token Factory, and it includes separate workspaces for the technician who does the work and the reviewer who approves it.
+> **In one line:** EvidenceLoop turns "trust me, it's done" into "here's the proof."
+<br/>
+🌐 Live Demo
+	Link
+🚀 Web app	https://evidenceloop-phi.vercel.app
+⚙️ Backend API (health check)	https://evidenceloop.onrender.com/health
+🎥 Demo video	(YouTube link)
+📖 Demo guide	DEMO.md
+How to use it in the browser:
+Open the web app in Chrome, Edge or Firefox (desktop or mobile).
+Click Open dashboard → Continue with Google.
+Create a work order, upload evidence, and click Run verification.
+<sub>The backend runs on a free server — if it was idle, the first load can take up to a minute.</sub>
+<br/>
+📑 Table of Contents
+		
+📖 What is EvidenceLoop?	🌐 Live Demo	💡 Overview
+⚙️ How It Works	✨ Features	🧠 NVIDIA Nemotron
+🛡️ Guardrails	👥 User Roles	🏗️ Tech Stack
+📸 Screenshots	🚀 Getting Started	🧪 Try It
+🔒 Security	🗺️ Roadmap	
+<br/>
+💡 Overview
+The Problem
+Maintenance and safety jobs are approved from a single photo that nobody really checks.
+> 📷 A photo doesn't prove the right part, the wiring, or a working test.
+> 🎲 Image classifiers say *what's in a picture* — not *whether the job is done*.
+> 🔁 Rework requests are vague: *"send more photos."*
+> 🗂️ There's no record of **why** a job was accepted.
+The Solution
+EvidenceLoop judges every requirement against the evidence — and asks for exactly what's missing.
+Traditional sign-off	✅ EvidenceLoop
+"Looks fine" from one photo	Every requirement judged on its own evidence
+AI guesses when unsure	Says "I cannot verify this" when proof is weak
+"Send more photos"	"Upload a 5–10 second video of the functional test"
+Re-check everything	Re-checks only what the new evidence affects
+Same person does and approves	Separate technician and reviewer
+No record of why	Full audit trail + PDF report
+<br/>
+⚙️ How It Works
+Example job: Replace the emergency light in Room 204 — 6 requirements: correct unit · correct location · securely mounted · electrical connection · indicator working · functional test.
+Step		What happens
+1	📋 Plan	Checklist created from a template — or drafted by Nemotron from an SOP manual
+2	📤 Collect	Technician uploads or captures photos, documents and video
+3	🧠 Analyze	Nemotron reads all evidence together and judges each requirement
+4	🛡️ Guard	Our policy code checks every AI answer — it can only become more cautious
+5	📝 Request	Missing proof becomes one specific, actionable request
+6	🔁 Re-check	New evidence re-analyzes only the affected requirements
+7	✅ Approve	Verified → a separate reviewer signs off → PDF report
+Each requirement ends as 🟢 Proven · ⚪ Not proven · 🟡 Uncertain · 🔴 Contradicted
+<br/>
+✨ Features
+	Feature	Description
+🤖	Agentic verification loop	Plans, checks, requests evidence and re-checks automatically
+🎞️	Multimodal evidence	Photos, PDF documents and videos with timestamped frames
+📸	In-app camera	Take photos or record videos directly from phone or laptop
+💬	Verity assistant	Ask "Why isn't this verified?" — answers from real data, read-only
+👥	Technician & Reviewer consoles	Separate workspaces; you can't approve your own work
+📑	SOP → requirements	Nemotron drafts the checklist with exact quotes from the manual
+🌐	Live 3D verification graph	Requirements change colour as decisions arrive
+🔐	Google sign-in	Plus verified email and password
+🧾	Audit trail & PDF report	Every action recorded and exportable
+<br/>
+🧠 NVIDIA Nemotron
+Every AI decision in EvidenceLoop runs on NVIDIA Nemotron via Nebius Token Factory.
+Model	Role	Why this model
+Nemotron 3.5 Super VL<br/><sub>`nvidia/Nemotron-3.5-Super-VL`</sub>	🔍 Evidence verification<br/>📑 SOP → requirements	Vision + strong reasoning + reliable structured output
+Nemotron 3 Nano<br/><sub>`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`</sub>	💬 Verity assistant	Fast and low-cost for instant answers
+📥 Input (one call): work order · all requirements · photos · PDF text · up to 8 timestamped video frames
+📤 Output (per requirement): status · cited observations · reasoning · confidence · exact missing evidence
+⚡ Where Nebius Token Factory helped
+OpenAI-compatible API — integrated in minutes with plain `fetch`, no SDK
+One vision model — replaced separate OCR and image-captioning tools
+Right-sized models — switching Super VL ↔ Nano is one setting
+Hosted inference — no GPUs to manage; the backend stays lightweight
+<br/>
+🛡️ Guardrails
+> **The model proposes. Our code decides.**
+Rule	Effect
+No direct observation of a real file	❌ Cannot be Proven
+Cites a file that doesn't exist	❌ Citation removed
+Missing or invalid AI answer	❌ Becomes Not proven
+Insufficient evidence	🗣️ "I cannot verify this requirement from the available evidence."
+Any mandatory requirement unproven	❌ Job cannot be Verified
+Verity assistant	🔒 Read-only — explains, never changes results
+<sub>EvidenceLoop supports inspectors. It does not replace official certification or guarantee physical safety.</sub>
+<br/>
+👥 User Roles
+Capability	🔧 Technician	🛡️ Reviewer
+Create work orders	✅	—
+Upload / capture evidence	✅	—
+Run AI verification	✅	—
+Submit for review	✅	—
+Approve · reject · request evidence	—	✅
+Audit log of all work orders	—	✅
+<br/>
+🏗️ Tech Stack
+Layer	Technologies
+🧠 AI	NVIDIA Nemotron 3.5 Super VL, Nemotron 3 Nano · Nebius Token Factory
+🎨 Frontend	React 19 · Vite · TypeScript · Tailwind CSS · React Three Fiber · Framer Motion
+⚙️ Backend	Node.js · Express · TypeScript
+🎞️ Media	PDF text extraction · ffmpeg video frame sampling · in-browser camera
+🗄️ Data & Auth	Supabase — Postgres with Row Level Security · Storage · Realtime · Google OAuth
+☁️ Hosting	Vercel (frontend) · Render (backend)
+<br/>
+📸 Screenshots
+<table>
+  <tr>
+    <td align="center"><b>Dashboard</b><br/><img src="docs/screenshots/dashboard.png"/></td>
+    <td align="center"><b>Work Order + 3D Graph</b><br/><img src="docs/screenshots/work-order.png"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Evidence Viewer</b><br/><img src="docs/screenshots/evidence-viewer.png"/></td>
+    <td align="center"><b>Landing Page</b><br/><img src="docs/screenshots/landing.png"/></td>
+  </tr>
+</table>
+<br/>
+🚀 Getting Started
+Prerequisite: Node.js 20.12+
+```bash
+git clone https://github.com/mokshadpoojary9-bot/evidenceloop.git
+cd evidenceloop
+npm install
+cp backend/.env.example backend/.env
+npm run seed:demo
+npm run dev
+```
 Open http://localhost:5173
-Backend settings (`backend/.env`)
-Setting	Purpose
-`NEBIUS_API_KEY`	Your Nebius Token Factory key (keep secret)
+<details>
+<summary><b>⚙️ Environment variables</b></summary>
+<br/>
+Backend — `backend/.env`
+Variable	Description
+`NEBIUS_API_KEY`	Nebius Token Factory API key (secret)
 `NEBIUS_BASE_URL`	`https://api.tokenfactory.nebius.com/v1`
 `NEBIUS_MODEL`	`nvidia/Nemotron-3.5-Super-VL`
 `NEBIUS_ASSISTANT_MODEL`	`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`
-`SUPABASE_URL` and `SUPABASE_SECRET_KEY`	Database connection (optional for local use)
-`CORS_ORIGIN`	The website address allowed to use the API
-Frontend settings (`frontend/.env.local`)
-Setting	Purpose
-`VITE_API_BASE_URL`	Backend address (leave empty for local use)
-`VITE_SUPABASE_URL`	Supabase project address
+`SUPABASE_URL` · `SUPABASE_SECRET_KEY`	Database connection (optional locally)
+`CORS_ORIGIN`	Allowed frontend URL(s)
+Frontend — `frontend/.env.local`
+Variable	Description
+`VITE_API_BASE_URL`	Backend URL (empty locally)
+`VITE_SUPABASE_URL`	Supabase project URL
 `VITE_SUPABASE_PUBLISHABLE_KEY`	Supabase public key
-A full demo walkthrough is in DEMO.md.
+</details>
+<br/>
+🧪 Try It
+Step	Action
+1	Open evidenceloop-phi.vercel.app (first load may take ~1 min)
+2	Sign in with Google
+3	New work order → Emergency light replacement → Create
+4	Upload sample files from `demo/room-204/` → Run verification
+5	Upload `functional-test.mp4` when requested
+6	Ask Verity: "Why is this work order verified?"
+7	Submit for review → Export report
+<br/>
+🔒 Security
+🔑 API keys live only on the server — never in the browser
+🛡️ Row Level Security on every table · roles enforced server-side
+📁 Private storage with short-lived signed URLs
+#️⃣ Every upload SHA-256 fingerprinted
+<br/>
+🗺️ Roadmap
+[ ] 🎙️ Audio transcription for spoken test confirmations
+[ ] 📄 OCR for scanned documents
+[ ] 📱 Guided mobile photo capture
+[ ] 🏢 Team workspaces
+[ ] 🔗 Maintenance ticketing integrations
+<br/>
 ---
-11. Try It (for Judges)
-Open https://evidenceloop-phi.vercel.app. The first load can take up to a minute while the server starts.
-Sign in with Google.
-Click New work order, choose Emergency light replacement, and click Create.
-Upload the sample files from the `demo/room-204` folder: before photo, after photo, close-up and SOP.
-Click Run verification.
-Upload `functional-test.mp4` when the video is requested.
-Click Ask Verity and ask "Why is this work order verified?"
-Click Submit for review, then Export report.
----
-12. Security
-API keys are stored only on the server, never in the browser.
-Each user can only see their own data, enforced by the database.
-Uploaded files are stored privately and protected with temporary links.
-Every upload is fingerprinted (SHA-256) so it cannot be swapped later.
----
-13. Roadmap
-Audio transcription for spoken test confirmations
-Reading scanned documents (OCR)
-Guided photo capture on mobile
-Team workspaces
-Integration with maintenance ticketing systems
----
-14. Author
-Moksha Poojary
-GitHub: https://github.com/mokshadpoojary9-bot
-Built for the Nebius × NVIDIA Global AI Hackathon, powered by NVIDIA Nemotron on Nebius Token Factory.
-Licensed under the MIT License.
+<div align="center">
+👨‍💻 Built by Moksha Poojary
+![GitHub](https://img.shields.io/badge/GitHub-mokshadpoojary9--bot-181717?style=for-the-badge&logo=github)
+Nebius × NVIDIA Global AI Hackathon · Powered by NVIDIA Nemotron on Nebius Token Factory
+Licensed under the MIT License
+⭐ If you find EvidenceLoop useful, give it a star!
+</div>
