@@ -1,777 +1,398 @@
-# EvidenceLoop
-
-**Prove the work. Don't just trust the photo.**
-
-Built for the **Nebius × NVIDIA Global AI Hackathon** · AI: **NVIDIA Nemotron via Nebius Token Factory**
-
-- **Live demo:** <coming soon>
-- **Demo video:** <coming soon>
-
-## In 30 seconds
-
-A technician says the job is done and uploads a photo. Does that photo actually prove that the
-right unit was installed, mounted, connected and tested? EvidenceLoop is an **agent** that answers
-that question for each requirement of a work order. NVIDIA Nemotron
-(`nvidia/Nemotron-3.5-Super-VL`) looks at the photos, video frames and documents. A code-enforced
-policy keeps it honest. Every requirement ends up `PROVEN`, `NOT_PROVEN`, `UNCERTAIN` or
-`CONTRADICTED`, with the observations and reasoning behind it. When proof is missing, the agent
-asks for the **minimum, specific** extra evidence ("Upload a 5–10 second video showing the
-emergency light functional test."). When that evidence arrives, it re-checks **only the
-requirements it affects**. A reviewer signs off, and the whole chain is exported as a PDF.
-
-> EvidenceLoop assists verification. It does not replace qualified inspectors or certification,
-> and it does not guarantee physical safety.
-
-## Problem → solution
-
-| Problem | EvidenceLoop |
-| --- | --- |
-| Field work is "proven" by a photo that nobody really checks. A photo of a light fitting doesn't show the right model, the wiring, or a working test. | Each requirement is judged on its own: does *this* evidence prove *this* requirement? A model-generated "looks fine" is not enough. A `PROVEN` status needs a direct observation of an attached file. |
-| Image classifiers say what is in a picture, not whether a job is done, and they guess when they're unsure. | Nemotron reasons over the work order, the requirements and every piece of evidence together. Insufficient evidence is `NOT_PROVEN`, stated as "I cannot verify this requirement from the available evidence." |
-| When proof is missing, people get vague rework requests ("send more photos"). | The agent's planner merges what is missing into the fewest, most specific requests. One upload can settle several requirements. |
-| Re-checking everything after every upload is slow and noisy, and old AI conclusions get trusted blindly. | New evidence re-analyzes only the affected requirements, from scratch. Earlier conclusions are never fed back to the model. |
-| There's no audit trail of *why* a job was accepted. | Requirement → Evidence → Observation → Reasoning → Decision is stored for every decision, alongside a timeline of every run, request and sign-off and a PDF report. |
-
-## Architecture
-
+<div align="center">
+EvidenceLoop
+Prove the work. Don't just trust the photo.
+Agentic, multimodal evidence verification for real-world work, powered by NVIDIA Nemotron on Nebius Token Factory.
+![NVIDIA Nemotron Super VL](https://img.shields.io/badge/NVIDIA-Nemotron%203.5%20Super%20VL-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
+![NVIDIA Nemotron Nano](https://img.shields.io/badge/NVIDIA-Nemotron%203%20Nano-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
+![Nebius Token Factory](https://img.shields.io/badge/Nebius-Token%20Factory-0F172A?style=for-the-badge)
+![Track](https://img.shields.io/badge/Track-Best%20Apps%20and%20Agents-76B900?style=for-the-badge)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-React%20Three%20Fiber-000000?logo=threedotjs&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-20.12%2B-339933?logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%C2%B7%20Auth%20%C2%B7%20Storage-3FCF8E?logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Frontend-Vercel-000000?logo=vercel&logoColor=white)
+![Render](https://img.shields.io/badge/Backend-Render-46E3B7?logo=render&logoColor=black)
+🚀 Live Demo · 🎥 Demo Video · 🧭 2-Minute Demo Script
+<br/>
+<img src="docs/screenshots/landing.png" alt="EvidenceLoop landing page with the 3D evidence loop" width="100%"/>
+</div>
+---
+Table of Contents
+The Problem
+The Solution
+How It Works
+Key Features
+Screenshots
+How NVIDIA Nemotron Is Used
+Guardrails: Honest by Design
+Roles
+Architecture
+Tech Stack
+Try It
+Quick Start
+Project Structure
+Testing & Quality
+Security
+Limitations
+Roadmap
+Hackathon Submission
+License
+Author
+---
+The Problem
+Every day, field work like installations, repairs and safety checks is signed off with a single photo that nobody really checks.
+📷 A photo of a light fitting doesn't show the right model, the wiring, or a working test.
+🎲 Image classifiers say what is in a picture, not whether a job is done, and they guess when unsure.
+🔁 When proof is missing, technicians get vague rework requests like "send more photos."
+🗂️ There is no audit trail of why a job was accepted.
+The Solution
+EvidenceLoop is an AI agent that checks whether the evidence actually proves each requirement of a work order.
+> A technician says *"Emergency light in Room 204 replaced."* EvidenceLoop checks every requirement (correct unit, correct location, securely mounted, wired, indicator working, functional test done) against the photos, video and documents. It marks each one **`PROVEN`**, **`NOT_PROVEN`**, **`UNCERTAIN`** or **`CONTRADICTED`**, explains why, and asks for **exactly** the missing proof:
+>
+> *"Upload a 5–10 second video showing the emergency light functional test."*
+>
+> The technician records it right in the app. EvidenceLoop re-checks **only the requirements it affects**, a reviewer signs off, and the whole decision chain is exported as a PDF.
+Traditional sign-off	EvidenceLoop
+"Looks fine" from a single photo	Each requirement judged on its own evidence
+AI guesses when unsure	Insufficient evidence → `NOT_PROVEN`, stated plainly
+Vague "send more photos"	Minimum, specific, merged evidence requests
+Re-check everything every time	Re-analyze only the affected requirements
+Same person does and approves the work	Separate technician and reviewer roles
+No record of why	Requirement → Evidence → Observation → Reasoning → Decision, stored
+---
+How It Works
 ```mermaid
 flowchart LR
-  subgraph Browser["Frontend: Vite · React · Tailwind · React Three Fiber"]
-    UI["Dashboard · Work orders · 3D live graph · Evidence viewer · Reviewer sign-off"]
+    A["📋 Work order<br/>+ requirements"] --> B["📤 Upload or capture<br/>photos · video · PDFs"]
+    B --> C["🧠 NVIDIA Nemotron<br/>multimodal analysis"]
+    C --> D["🛡️ Policy guardrails<br/>only more cautious"]
+    D --> E{"All mandatory<br/>requirements PROVEN?"}
+    E -- Yes --> F["✅ VERIFIED"]
+    E -- No --> G["📝 Minimum evidence<br/>request"]
+    G --> H["📸 New evidence"]
+    H --> I["🔁 Re-analyze only<br/>affected requirements"]
+    I --> D
+    F --> J["👤 Reviewer sign-off<br/>+ 📄 PDF report"]
+```
+Plan: build a checklist from the work order, or draft it from an uploaded SOP.
+Analyze: Nemotron looks at photos, PDF text and timestamped video frames together.
+Guard: a code-enforced policy checks every model answer and can only downgrade, never upgrade.
+Request: missing proof is merged into the fewest, most specific requests.
+Re-analyze: new evidence re-checks only what it affects, from scratch.
+Decide: `VERIFIED` only when every mandatory requirement is `PROVEN`.
+Sign off: a separate reviewer approves, rejects or asks for more. Everything is audited.
+---
+Key Features
+<table>
+<tr>
+<td width="50%" valign="top">
+🤖 Agentic Verification Loop
+Plan → analyze → guard → detect missing or contradicting evidence → request → re-analyze. Not a one-shot classifier.
+🎯 Minimum Evidence Requests
+Missing needs are merged by kind, so one functional-test video can settle several requirements.
+🎞️ True Multimodal Input
+Photos, PDF text layers, timestamped video frames and text. Video observations jump the player to the cited second.
+📸 In-App Camera Capture
+Take photos or record short videos directly from a phone or laptop camera. Photos are compressed before upload, and captures are tagged in the audit trail.
+💬 Verity: AI Verification Co-pilot
+Ask "Why isn't Room 204 verified?" or "What should I upload next?". Verity answers from your real work-order data, runs on Nemotron Nano, and is strictly read-only.
+🌐 Live 3D Verification Graph
+A React Three Fiber graph on every work order. Nodes change colour as decisions arrive, with quality adapted to real FPS and a 2D fallback.
+</td>
+<td width="50%" valign="top">
+👥 Technician & Reviewer Consoles
+Technicians do the work in their own workspace. Reviewers get a separate review queue and audit log. Roles come from the database and are enforced by the backend and Row Level Security.
+🔐 Real Sign-in
+Google sign-in plus email/password with validation and email confirmation. Public Privacy and Terms pages.
+📑 Requirements from an SOP
+Upload a manual and Nemotron proposes requirements, each with a verbatim quote. You review before anything is saved.
+🧾 Full Audit Trail
+Every run, decision, request, capture and sign-off on a timeline.
+📄 PDF Report
+Requirements, evidence with SHA-256 hashes, observations, decisions, audit trail and disclaimer in one file.
+⚡ Fast & Durable
+Everything is saved in Supabase. Cached data, code-split pages and a keep-alive ping keep the app responsive.
+</td>
+</tr>
+</table>
+---
+Screenshots
+<table>
+<tr>
+<td align="center" width="50%"><b>Dashboard</b><br/><img src="docs/screenshots/dashboard.png" alt="Dashboard with status counts, open requests and recent activity"/></td>
+<td align="center" width="50%"><b>Work Order + 3D Verification Graph</b><br/><img src="docs/screenshots/work-order.png" alt="Room 204 work order with score, provenance and 3D graph"/></td>
+</tr>
+<tr>
+<td align="center" width="50%"><b>Evidence Viewer</b><br/><img src="docs/screenshots/evidence-viewer.png" alt="Evidence viewer with observations citing the file"/></td>
+<td align="center" width="50%"><b>Landing: 3D Evidence Loop</b><br/><img src="docs/screenshots/landing.png" alt="Landing page with the 3D evidence loop"/></td>
+</tr>
+</table>
+<sub>Screenshots show seeded demo data, labelled "Simulated · dev fixture". Run verification on the live site for real Nemotron results.</sub>
+---
+How NVIDIA Nemotron Is Used
+NVIDIA Nemotron on Nebius Token Factory is the only AI in EvidenceLoop. There is no other model or AI SDK, and the browser never calls the model directly.
+	
+Verification model	`nvidia/Nemotron-3.5-Super-VL` (vision-language): judges evidence, drafts requirements from SOPs
+Assistant model	`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (set by `NEBIUS_ASSISTANT_MODEL`): fast, low-cost chat for Verity
+Provider	Nebius Token Factory, OpenAI-compatible `/chat/completions`
+Mode	JSON output, temperature 0, retries with backoff on 429 / 5xx / timeouts
+Where	`backend/src/ai/nebiusProvider.ts`, `backend/src/assistant/`, `backend/src/lib/nebius.ts`
+Status	✅ Verified live: text + vision checks pass (`npm run check:nebius`)
+Right model for each job: Super VL handles the heavy multimodal reasoning, and Nano answers chat questions quickly so the app stays responsive and credits last longer.
+What the verifier receives: one multimodal message with the work order, every requirement and every piece of evidence, each tagged with an `evidenceId`.
+Evidence	Sent as
+📷 Photos (uploaded or captured)	Inline images
+📄 PDFs	Extracted text layer
+🎥 Video	Up to 8 frames, each labelled with its timestamp (`t=0:04`)
+📝 Text	Inline
+🔊 Audio · scanned PDFs	Declared as "attached but NOT inspected", so the model can't pretend
+What it returns: one JSON assessment per requirement, with `status`, `observations` (each citing an `evidenceId`, marked `direct` or `inferred`, with video timestamps), `reasoning`, calibrated `confidence` (or `null`) and specific `missingEvidence` requests.
+Where Nebius Token Factory accelerated the build
+OpenAI-compatible API: integrated with plain `fetch` in one small client. No SDK to learn, no lock-in.
+One model for vision + reasoning + JSON: no separate OCR, captioning or classifier service.
+Right-sized models: switching between Super VL and Nano is one environment variable.
+Playground iteration: prompts and the JSON schema were tried in the Token Factory Playground first.
+Hosted inference: no GPUs to manage, so the backend runs on a small instance.
+---
+Guardrails: Honest by Design
+The model proposes. `agent/policy.ts` decides, and it can only make a decision more cautious.
+❌ `PROVEN` without a direct observation of an attached file → downgraded
+❌ `CONTRADICTED` without cited evidence → downgraded to `UNCERTAIN`
+❌ Observations citing files that aren't attached → dropped
+❌ Missing or malformed answers → `NOT_PROVEN`
+🗣️ Unproven requirements always state: "I cannot verify this requirement from the available evidence."
+🔒 Confidence is passed through or dropped, never invented
+✅ `VERIFIED` only when every mandatory requirement is `PROVEN`
+💬 Verity is read-only: it explains results but can never change them, and it says so when data is missing
+> EvidenceLoop **assists** verification. It does not replace qualified inspectors or certification, and it never claims physical safety is guaranteed.
+---
+Roles
+	Technician	Reviewer (admin)
+Create work orders	✅	—
+Upload / capture evidence, run verification	✅ own work orders	❌
+Submit for review	✅	—
+Review queue: approve / reject / request evidence	❌	✅ (note required)
+Audit log across all work orders	❌	✅
+Ask Verity	✅ own data	✅ review queue
+Every new account is a technician. Roles live in `public.user_roles` and can't be changed from the app. To make an account a reviewer, run in the Supabase SQL editor:
+```sql
+insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'reviewer@example.com' on conflict (id) do update set role = excluded.role;
+```
+---
+Architecture
+```mermaid
+flowchart LR
+  subgraph Browser["Frontend · Vercel"]
+    UI["React 19 · Vite · Tailwind<br/>React Three Fiber · Camera"]
   end
 
-  subgraph API["Backend: Node.js · Express · TypeScript"]
-    Routes["REST routes<br/>work orders · evidence · reviews · SOP drafts · PDF report"]
-    Engine["agent/engine.ts<br/>verification loop"]
-    Media["media/<br/>PDF text (unpdf) · video frames (ffmpeg)"]
-    Provider["ai/nebiusProvider.ts"]
-    Policy["agent/policy.ts<br/>guardrails"]
-    Planner["agent/planner.ts<br/>minimum evidence requests"]
-    Audit["agent/audit.ts<br/>audit trail"]
+  subgraph API["Backend · Render"]
+    Routes["Express 5 REST API"]
+    Engine["Agent engine<br/>verification loop"]
+    Media["Media<br/>PDF text · video frames"]
+    Policy["Policy guardrails"]
+    Planner["Evidence planner"]
+    Verity["Verity assistant<br/>read-only"]
+    Audit["Audit trail"]
   end
 
   subgraph Nebius["Nebius Token Factory"]
-    Nemotron["NVIDIA Nemotron<br/>nvidia/Nemotron-3.5-Super-VL"]
+    SuperVL["Nemotron 3.5 Super VL"]
+    Nano["Nemotron 3 Nano"]
   end
 
   subgraph Supabase["Supabase"]
     DB[("Postgres + RLS")]
-    Storage[("Private evidence bucket")]
-    Auth["Auth"]
+    Storage[("Private storage")]
+    Auth["Auth · Google OAuth"]
     RT["Realtime"]
   end
 
-  UI -- "HTTPS + user JWT" --> Routes
-  UI -. "publishable key: sign-in, Realtime" .-> Auth
+  UI -- "HTTPS + JWT" --> Routes
+  UI -. "sign-in" .-> Auth
   RT -. "live updates" .-> UI
   Routes --> Engine
+  Routes --> Verity
   Engine --> Media
-  Media --> Provider
-  Engine --> Provider
-  Provider -- "images · PDF text · timestamped video frames" --> Nemotron
-  Nemotron -- "JSON assessments" --> Provider
-  Provider --> Policy
+  Engine -- "images · PDF text · video frames" --> SuperVL
+  SuperVL -- "JSON assessments" --> Policy
   Policy --> Planner
+  Verity --> Nano
   Engine --> Audit
-  Engine -- "secret key (backend only)" --> DB
+  Engine --> DB
   Routes --> Storage
 ```
-
-**The loop:** plan the checklist → analyze evidence with Nemotron → policy checks every answer →
-detect missing or contradicting evidence → request the minimum additional evidence → new upload →
-re-analyze only the affected requirements → `VERIFIED` only when every mandatory requirement is
-proven → reviewer sign-off.
-
-## How NVIDIA Nemotron + Nebius Token Factory are used
-
-Production AI is **NVIDIA Nemotron served by Nebius Token Factory**. It is the only inference
-provider in this project. There is no other AI API or SDK, and the browser never calls the model.
-
-- **Model:** `nvidia/Nemotron-3.5-Super-VL` (vision-language), set by `NEBIUS_MODEL`.
-- Nemotron Nano for fast assistant chat, Nemotron Super VL for vision verification:
-  **Verity**, the read-only assistant (`POST /api/assistant`, "Ask Verity" in the sidebar and on
-  work order pages), uses `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (`NEBIUS_ASSISTANT_MODEL`),
-  streamed with the reasoning trace off. It answers only from the signed-in user's own data
-  (technicians: their work orders; reviewers: the review queue), which the backend loads and
-  caps at 20k characters, and is limited to 8 questions a minute and 150 a day per user.
-- **Endpoint:** Nebius's OpenAI-compatible `POST {NEBIUS_BASE_URL}/chat/completions`, called with
-  plain `fetch` (`backend/src/lib/nebius.ts`, `chatCompletion`). It uses JSON mode and
-  temperature 0, with retries and backoff on 429/5xx/timeouts. The key is read only by the
-  backend and is never logged.
-- **Verified live** on 2026-10-17: `npm run check:nebius` passed for text and image, and real
-  verification runs and SOP drafts went through the adapter and the policy. On deliberately
-  useless evidence (a blank photo, a test-pattern video, an unverified install sheet), Nemotron
-  returned `NOT_PROVEN` for every requirement with the required "cannot verify" sentence. Each
-  backend still proves its own connection with a startup live test. The UI says **"Nemotron
-  connected"** only after that test passes, and "not configured / not verified" otherwise.
-
-**What is sent** (`backend/src/ai/nebiusProvider.ts`, `NebiusNemotronProvider.assess`): one
-multimodal message. It holds the work order, every requirement being checked, and every piece of
-evidence, each tagged with its `evidenceId`:
-
-| Evidence | How it is sent | Not inspected (declared to the model) |
-| --- | --- | --- |
-| Photos | Inline base64 image (≤ 5 MB) | Larger images |
-| PDF | Text layer extracted on the backend (`unpdf`), first 20,000 characters | Scanned PDFs without a text layer, images inside PDFs |
-| Video | Up to 8 still frames (about one every 2 s, spread wider for long clips), each labelled with its timestamp, e.g. `frame at t=0:04 (4 s)` (`ffmpeg-static`) | What happens between frames; the soundtrack |
-| Text / transcript | Inline text, first 20,000 characters | The rest |
-| Audio | — | Everything (no transcription) |
-
-Anything not inspected is listed as "attached but NOT inspected", with the reason, so the model
-cannot claim to have seen it. Uploader notes are marked as unverified claims.
-
-**What comes back:** one JSON assessment per requirement, with `status`; `observations`, each
-citing an `evidenceId`, marked `direct` or `inferred`, with `startSec`/`endSec` for video;
-`reasoning`; a calibrated `confidence` (or `null`); and `missingEvidence` (specific, actionable
-requests). The same adapter drafts requirements from an SOP (`draftRequirements`). Each proposal
-must quote the SOP verbatim, and `agent/sopDraft.ts` discards any whose quote is not in the
-document.
-
-**How `agent/policy.ts` guards it** (`applyPolicy`, run on every model answer and covered by
-`policy.test.ts`): the model proposes and the policy decides. The policy can only make a decision
-*more* cautious:
-
-- A missing, malformed or misaddressed answer becomes `NOT_PROVEN`.
-- `PROVEN` without a direct observation of an actually attached file is downgraded to
-  `UNCERTAIN` or `NOT_PROVEN`. `CONTRADICTED` with no cited evidence becomes `UNCERTAIN`.
-- Observations that cite files not attached to the work order, and invalid timestamps, are
-  dropped.
-- Confidence is passed through or dropped, never computed. Out-of-range values are dropped, and
-  so is the confidence of an overridden status.
-- `NOT_PROVEN` and `UNCERTAIN` always say "I cannot verify this requirement from the available
-  evidence."
-- `VERIFIED` requires every mandatory requirement to be `PROVEN` (`overallStatus`). Any
-  contradiction blocks it.
-
-**The DEV fixture is clearly labelled.** `backend/src/ai/devFixtureProvider.ts` lets the loop run
-without a key (`DEV_FIXTURE_AI=true`). It is **not AI inference**: it never opens a file and only
-checks which *kinds* of evidence are attached. Everything it produces is stored with
-`simulated: true` and shown as "Simulated · dev fixture" in the UI, the audit trail and the PDF
-report, and it reports no confidence. It is ignored whenever Nebius is configured, and it can
-never run with `NODE_ENV=production`.
-
-## Key features
-
-- **Agentic verification loop:** plan → analyze → policy → detect missing and contradicting
-  evidence → request → re-analyze affected requirements only (`agent/engine.ts`).
-- **Minimum evidence requests:** missing needs are merged by kind, so one functional-test video
-  can settle two requirements. Requests can be answered inline on the work order page.
-- **Multimodal evidence:** photos, PDFs (text layer), video (timestamped frames), text. Video
-  observations jump the player to the cited moment.
-- **3D live verification view:** a React Three Fiber graph of requirements and evidence on every
-  work order. Nodes change colour as decisions arrive (Supabase Realtime), with a 2D fallback
-  chosen by measured frame rate.
-- **Requirements from an SOP:** Nemotron proposes requirements with verbatim quotes, and you
-  review them before anything is saved.
-- **Reviewer sign-off:** submit → in review → approve, reject or request evidence, enforced in the
-  backend, by RLS and by a database trigger. Approval is a human decision, never shown as
-  `VERIFIED`.
-- **Audit trail:** every run, decision, request and sign-off on a timeline, grouped by run.
-- **PDF report:** requirements, evidence with SHA-256, observations, decisions, requests, audit
-  trail and the disclaimer.
-- **Evidence viewer:** zoom and pan, video timeline markers, PDF pages, and what the AI can and
-  cannot inspect for each file.
-
-## Screenshots
-
-| Landing (3D hero) | Dashboard |
-| --- | --- |
-| ![Landing page with the 3D evidence loop](docs/screenshots/landing.png) | ![Dashboard with status counts, open requests and activity](docs/screenshots/dashboard.png) |
-| **Work order with the 3D verification graph** | **Evidence viewer** |
-| ![Room 204 work order: score, provenance and 3D graph](docs/screenshots/work-order.png) | ![Evidence viewer with the observations that cite the file](docs/screenshots/evidence-viewer.png) |
-
-*The screenshots show the seeded demo data (`npm run seed:demo`) in local DEV mode, so every
-result is labelled "Simulated · dev fixture". For the demo with real Nemotron, see
-[DEMO.md](DEMO.md).*
-
-## Run locally in 5 commands
-
-Requires **Node.js 20.12+**.
-
-```bash
-git clone https://github.com/mokshadpoojary9-bot/evidenceloop.git && cd evidenceloop
-npm install
-cp backend/.env.example backend/.env   # set NEBIUS_API_KEY + NEBIUS_MODEL, or DEV_FIXTURE_AI=true
-npm run seed:demo                      # three demo work orders (labelled simulated)
-npm run dev                            # API on :4000, dashboard on http://localhost:5173
-```
-
-With no Supabase values, this runs in **local mode**: no sign-in, with data in `backend/.data/`.
-Open a demo work order and follow the 2-minute click path in [DEMO.md](DEMO.md).
-
-**With Supabase:** run `supabase/schema.sql`, fill in the Supabase values (see
-[Connecting Supabase](#connecting-supabase)), sign up in the app and confirm your email, then seed
-the demo into your account:
-
-```bash
-npm run seed:demo -- --owner <your email>
-```
-
-## Honest limitations
-
-- **Audio is not inspected** (no transcription), and neither are video soundtracks. **Scanned
-  PDFs without a text layer are not OCR'd.** Both are shown as "attached but not inspected", and
-  the model is told so. Only NVIDIA Nemotron via Nebius may be used, so both wait for a Nemotron
-  model on Token Factory that accepts audio or page images.
-- Video is seen as at most 8 still frames. Nothing between frames is inspected.
-- **The demo images are drawn illustrations**, made for the DEV fixture walkthrough. Real Nemotron
-  judges them on what they actually show and may, correctly, refuse to verify them. For a
-  real-model demo, use real photos and video.
-- The seeded demo results come from the DEV fixture and are labelled simulated. Click **Run
-  verification** with Nebius configured to get a real Nemotron result.
-- EvidenceLoop **assists** verification. It does not replace qualified inspectors or
-  certification, and it never claims physical safety is guaranteed.
-
 ---
-
-## Supabase: current status
-
-**Supabase has been verified live** (2026-10-18): auth, database, storage and Realtime.
-
-- `npm run check:supabase` passes every check: the secret key, email sign-up with required email
-  confirmation, all 9 tables with every column the backend uses, RLS enabled and read policies
-  on every table, the Realtime publication, the review trigger, and a private `evidence` bucket.
-- An end-to-end run against the live project, with real Nemotron, passed:
-  - Sign-up returns no session until the email is confirmed, and sign-in is refused until then.
-    Sign-out revokes the session.
-  - Photos and the SOP PDF landed in the private bucket and were served only through signed URLs.
-    Public URLs and the browser key are refused.
-  - A Nemotron run gave every requirement a status and opened evidence requests. Realtime
-    delivered the changes while the run was in flight, and nothing reached another technician.
-  - A video answering the request triggered re-analysis, and the PDF report exported.
-  - RLS was checked with three accounts, and the reviewer rules held in both the backend and the
-    database.
-
-  That run re-analyzed all six requirements, because none was proven yet. Re-analysis now covers
-  only the affected ones (see *Re-analysis* below). That change is covered by tests but has not
-  been re-run against Nemotron.
-
-## The demo scenario
-
-Work order: **Replace emergency light in Room 204.** Six requirements: correct unit installed,
-correct location, securely mounted, electrical connection completed, indicator functioning,
-functional test completed.
-
-With the DEV fixture enabled:
-
-1. Create the work order from the *Emergency light replacement* template.
-2. Upload a before photo, an after photo, the SOP/manual and a close-up photo.
-3. **Run verification** → four requirements proven, "Indicator functioning" uncertain,
-   "Functional test completed" not proven.
-4. The agent opens one request covering both: *"Upload a 5–10 second video showing the emergency
-   light functional test."*
-5. Upload a video against that request → only the affected requirements are re-analyzed → verified.
-
-Adding `#contradict` to an upload's note makes the fixture simulate a contradiction (DEV ONLY).
-
-### Seeded demo data
-
-`npm run seed:demo` creates three work orders from the sample evidence in [`demo/`](demo/SOURCES.md):
-Room 204 (4 of 6 proven, functional-test video requested), Corridor B (VERIFIED, with a full
-request → answer → re-analysis loop) and Lab 3 (CONTRADICTED: wrong fan model). It uses the same
-writes and verification engine as the API with the DEV fixture, so every result is labelled
-simulated. No Nebius call is made. It is safe to run twice. `npm run seed:demo -- --reset` removes
-only those three. In Supabase mode, pass the owning technician: `-- --owner you@example.com` (or set
-`DEMO_OWNER_EMAIL`). In local mode, stop the API first. The 2-minute click path is in [DEMO.md](DEMO.md).
-
-## Roles and reviewer sign-off
-
-| Role | Can |
-| --- | --- |
-| **Technician** (default) | Create work orders, upload evidence, run verification, add requirements, edit/archive/delete their own work orders, submit for review |
-| **Reviewer** | Read every work order, export reports, decide pending reviews. Cannot change work orders or upload evidence |
-
-Each role has its own workspace, and the role comes only from `public.user_roles`:
-
-- **Technician:** *Dashboard* (open evidence requests, drafts, and contradicted or uncertain
-  work orders with a **Submit for review** button), *My work orders*, *New work order*.
-- **Reviewer (admin):** marked with a violet **Reviewer** badge. *Review queue* (`/review`) lists
-  in-review, contradicted and uncertain work orders from every technician, with the technician's
-  name, submission time and score, and approve / reject / request more evidence (note required)
-  once submitted. *All work orders*, and *Audit log* (`/audit`), the latest events across every
-  work order, filterable by work order, event type, person and text.
-- After sign-in, technicians land on the dashboard and reviewers on the review queue.
-
-A work order that is **CONTRADICTED**, or **not verified with an UNCERTAIN requirement**, can be
-submitted for review. It moves to **In review** and is frozen (no uploads, runs or checklist
-changes). The reviewer then, always with a note:
-
-- **approves** → *Approved by reviewer*. This is a human decision and is labelled as one; the
-  unproven requirements stay unproven and the work order is never shown as *Verified*;
-- **rejects** → *Rejected by reviewer*;
-- **requests more evidence** → an evidence request from the reviewer, back to the technician.
-  Re-analysis never retires a reviewer's request; only an upload answers it.
-
-Every step is in the audit trail with the actor's role. Enforcement is in three places:
-
-1. **Backend** — every route checks the role and ownership (`stores/workOrders.ts`,
-   `routes/reviews.ts`); the UI only reflects the `permissions` the API returns.
-2. **Row Level Security** — technicians read only their own work orders, reviewers read all;
-   clients have no write path at all.
-3. **Database trigger** on `public.reviews`, which also binds the backend's secret key: only a
-   user with the reviewer role can decide a review, never the person who submitted it, and a
-   decided review cannot be changed.
-
-**Assigning roles (Supabase):** every user is a technician until an administrator makes them a
-reviewer. The account must already exist (signed up and email confirmed). In the SQL editor:
-
-```sql
-insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'you@example.com' on conflict (id) do update set role = excluded.role;
-```
-
-To make them a technician again: `delete from public.user_roles where id = (select id from auth.users where email = 'you@example.com');`
-The new role applies on the user's next request; reload the dashboard. Reviewers do not create
-work orders, so testing the flow needs two accounts: a technician who submits and a reviewer who
-decides.
-
-**Local mode:** a *Demo mode* Technician / Reviewer switcher acts as two fixed local users. It
-appears only in local mode, and the backend honours it only when Supabase Auth is not configured.
-
-## Requirements from an SOP
-
-On the new-work-order form, or on an existing work order, upload an SOP or manual (PDF with a text
-layer, or plain text) and click **Generate requirements**:
-
-1. The backend extracts the text (`POST /api/requirements/draft`; nothing is stored) and asks
-   Nemotron to propose requirements: title, description, mandatory yes/no, and the evidence that
-   would prove each one.
-2. Every proposal must quote the SOP passage it comes from. `agent/sopDraft.ts` drops any
-   proposal whose quote is not in the document, so the model cannot invent requirements.
-3. You review, edit and delete proposals in the browser. Only when you confirm are they saved
-   (`POST /api/work-orders/:id/requirements`), with an audit event naming the source file.
-
-With the DEV fixture the list is simulated — step-like lines copied verbatim from the SOP, with a
-keyword guess at the evidence — and is labelled as such. Scanned PDFs without a text layer are
-refused (422), and with no AI configured drafting is refused (503) rather than faked.
-
-## Work order page
-
-The main demo screen, top to bottom:
-
-- **Header:** status, "4 / 6 requirements proven" with one bar segment per requirement, when it
-  was last verified, Run verification and Export report. A provenance badge says
-  "Verified by NVIDIA Nemotron via Nebius" only for a run that used Nemotron; fixture runs say
-  "Simulated · dev fixture".
-- **Evidence requests** (amber): each request, the requirements it affects (click to jump), and
-  an upload button right there that answers that request.
-- **Requirement cards:** mandatory/optional, status, the model-reported confidence or
-  "Confidence not given", and the reasoning. Unproven cards say "I cannot verify this requirement
-  from the available evidence." and list what is missing. Expanding shows the chain
-  Requirement → Evidence → Observation (direct / inferred) → Reasoning → Decision; observations
-  link to their evidence, and video timestamps open the player at that moment.
-- **Evidence gallery:** thumbnails with kind, uploader, time and a short SHA-256; drag-and-drop
-  upload with a progress bar and retry. The type and size are checked before uploading too.
-- **Audit trail:** a timeline grouped by verification run, an icon per event, filter by type.
-
-## Camera capture
-
-**Take photo** and **Record video** sit next to Upload in the evidence panel and in each open
-photo or video request. On phones the rear camera app opens directly (`capture="environment"`);
-on laptops a dialog shows a live preview (`getUserMedia`, rear camera preferred) with Capture
-photo, Record/Stop (up to 15 s, with a countdown), Retake and Use this. If the camera is denied
-or missing, it says so and offers a file upload instead; the camera is released whenever the
-dialog closes. Photos are resized to at most 2000 px on the long side (JPEG, quality 0.85).
-Captures go through the same upload (type and size checks, SHA-256, progress, retry,
-re-analysis) and the audit trail records them as *Captured in app* with the device's capture
-time. A phone file older than two minutes (likely picked from the gallery) is uploaded without
-that tag. The dialog's code (`CameraCapture.tsx`) loads only when it is opened.
-
-## Evidence viewer
-
-Click any evidence file, or any evidence cited in a requirement's observations, to open it in the
-viewer: images with zoom and pan (buttons, wheel, drag, or +/−/0 and arrow keys), video with the
-citing observations marked on a timeline under the player (click a marker to jump), PDFs with
-page navigation, audio, and text files. Audio and PDFs without a text layer carry a
-**Not inspected** label: whether a PDF has a text layer is checked at upload and recorded in the
-upload's audit event. Beside the preview are the file's metadata and full SHA-256, **what the AI
-can actually inspect** for that file type, and every observation that cites the file.
-
-## Sign-in redirect
-
-A signed-out user is sent to `/login?next=<the full address, query string included>` and comes
-back there after signing in (also through the email-confirmation link). Only same-site relative
-paths are accepted (`frontend/src/lib/returnTo.ts`); anything else falls back to `/dashboard`.
-
-## Dashboard
-
-`/dashboard` is the home page after sign-in, served by `GET /api/dashboard`. Everything on it
-comes from work orders the user may see: their own, or all of them for a reviewer, the same rule
-as the list.
-
-- **Count cards:** Verified, Needs evidence, In review, Contradicted and Draft (not verified
-  yet). Archived work orders are not counted. A card opens the work order list filtered by that
-  status (`/work-orders?status=…`).
-- **Needs your action:** open evidence requests (what to upload, for which requirements) and
-  work orders waiting for a reviewer's decision.
-- **Recent activity:** the last 10 audit events across those work orders, with time and actor.
-  The actor is shown as You, Agent, System, Reviewer or Technician, never an email or id.
-- **System status:** chips read "Nemotron connected" (only after the live test passed),
-  "Supabase connected", or "Simulated · dev fixture" / "Local data · dev".
-- **Live updates:** with Supabase, a Realtime subscription to work orders, evidence requests and
-  audit events, removed on unmount. In local mode it polls every 5 seconds while the tab is
-  visible. The work order list updates the same way.
-
-## Design system
-
-- **Tokens:** `frontend/src/styles.css`, as Tailwind 4 theme tokens.
-  - Fixed: the NVIDIA-green accent `#76B900`, the type scale (`text-display`, `text-title`,
-    `text-heading`), radius (`rounded-control`, `rounded-card`), shadows (`shadow-card`,
-    `shadow-raised`, `shadow-glow`) and layout spacing (`w-sidebar`).
-  - Themeable, for light and dark: surfaces (`bg-canvas`, `bg-surface`, `bg-field`), lines, text
-    (`text-fg`, `text-fg-muted`, `text-fg-subtle`, `text-fg-faint`) and status colours
-    (`proven`, `not-proven`, `uncertain`, `contradicted`, `analyzing`, plus `review` and `dev`).
-    Fills match the 3D scenes; each colour also has a readable `-fg` text shade.
-- **Light and dark mode:** a toggle in the sidebar or top bar, remembered in `localStorage`
-  (wrapped in try/catch). Without a saved choice, the system preference applies; an inline script
-  in `index.html` sets it before first paint. The 3D stages carry `.theme-dark`, so they stay
-  dark in both modes.
-- **Shared components:** in `frontend/src/components/ui/`: Button (primary, secondary, ghost,
-  danger) and ButtonLink, Card, Badge, Input, Select, Textarea, FileInput and Field, Modal and
-  ConfirmDialog (native `<dialog>`: focus is trapped and Esc closes it), Toast, EmptyState,
-  ErrorState, Skeleton and PageHeader.
-- **Every page:** a loading skeleton, an empty state, and an error state with "Try again".
-  Every action shows a toast: created, uploaded, verification started or finished, submitted,
-  approved, rejected, archived, deleted, exported, or the error.
-- **Navigation:** a sidebar on desktop and a drawer on mobile (also a `<dialog>`), with the active
-  page highlighted. Pages fade in on navigation, without the movement under
-  `prefers-reduced-motion`. There is a "Skip to content" link, and every control shows a visible
-  focus ring.
-
-## Managing work orders
-
-- **List** — search (title, location, description), filter by status or archived (kept in the
-  URL, so a link such as `/work-orders?status=CONTRADICTED` opens the filtered list), sort by
-  newest, oldest or recently updated.
-- **Edit** — title, location and description. Every change is written to the audit trail with
-  its old and new value.
-- **Archive** — makes the work order read-only (no uploads, edits or verification runs) and
-  hides it from the default list. Unarchive to resume.
-- **Delete** — permanent, after a confirmation dialog: removes the work order, its evidence files,
-  decisions and audit trail. Archive instead to keep the record.
-- **Export PDF** — `GET /api/work-orders/:id/report.pdf`: requirements, evidence (with SHA-256),
-  observations, decisions, evidence requests and the full audit trail, with the disclaimer that
-  EvidenceLoop does not replace qualified inspectors. DEV fixture results are labelled simulated.
-
-## Architecture: details
-
-The diagram is in [Architecture](#architecture) above. The loop can run with either provider behind `ai/provider.ts` (`NebiusNemotronProvider` in production, `DevFixtureProvider` for DEV ONLY), and either store behind `stores/db.ts` (Supabase, or local disk as a dev-only fallback).
-
-### The verification loop (`backend/src/agent/engine.ts`)
-
-Work order → retrieve requirements → build checklist → analyze evidence → map evidence to
-requirements → check proof → detect uncertainty and contradictions → identify missing evidence →
-plan the minimum request → new evidence → re-analyze → final verification, with every step
-appended to the audit trail.
-
-The AI provider supplies perception and judgment only. Everything else is deterministic code:
-
-- **Policy (`agent/policy.ts`)** — applied to every provider answer. It can only make a decision
-  more cautious. `PROVEN` without a direct observation of evidence that is actually attached is
-  downgraded; `CONTRADICTED` without cited evidence is downgraded; observations citing unknown
-  files are dropped; confidence is passed through or dropped, never computed; unproven
-  requirements always state "I cannot verify this requirement from the available evidence."
-  A missing or malformed answer becomes `NOT_PROVEN`.
-- **Planner (`agent/planner.ts`)** — merges missing-evidence needs by kind so one upload can
-  settle several requirements. Only unproven *mandatory* requirements generate requests.
-- **Re-analysis** — new evidence re-evaluates only the requirements it affects: those named by
-  the evidence request it answers, and those whose evidence needs list its kind (proven ones
-  included, so new evidence can overturn `PROVEN`). Evidence that matches no requirement
-  re-evaluates every unproven one, so nothing is ignored. Earlier conclusions are not fed back to
-  the provider.
-- **Overall status** — `VERIFIED` only when every mandatory requirement is `PROVEN`; any
-  contradiction blocks it.
-
-Each decision is stored as an append-only assessment:
-**Requirement → Evidence → Observation (direct | inferred) → Reasoning → Decision.**
-
-### Project structure
-
-```
-backend/src/
-  index.ts              Composition root: picks Supabase or local stores, and the AI provider
-  app.ts                Express app
-  types.ts              Domain model — shared with the frontend via the @domain alias
-  templates.ts          Requirement library (the demo scenario)
-  config/env.ts         Environment validation; decides the AI mode
-  ai/                   provider.ts (interface) · nebiusProvider.ts · devFixtureProvider.ts · liveCheck.ts · modelJson.ts
-  agent/                engine.ts (the loop) · policy.ts · planner.ts · sopDraft.ts · audit.ts
-  media/                pdfText.ts (unpdf) · videoFrames.ts (ffmpeg-static) · documentText.ts
-  reports/              workOrderReport.ts (PDF export)
-  demo/                 seedDemo.ts (npm run seed:demo)
-  scripts/              checkNebius.ts · checkSupabase.ts · seedDemo.ts
-  stores/               db.ts (interface) · supabaseDb.ts · localDb.ts · fileStore.ts · workOrders.ts
-  middleware/           auth.ts (Supabase JWT) · errors.ts
-  routes/               health.ts (health, system, templates) · workOrders.ts · requirements.ts · reviews.ts
-  lib/                  supabase.ts · nebius.ts (HTTP client)
-frontend/src/
-  App.tsx               Routes
-  api.ts · auth.tsx · hooks.ts · lib/supabase.ts
-  components/ui/        Shared UI kit (Button, Card, Badge, Input, Select, Modal, Toast, …)
-  components/           AppShell (sidebar, drawer), Dashboard, Landing, WorkOrderList,
-                        WorkOrderForm, WorkOrderDetail, RequirementCard,
-                        EvidencePanel, EvidenceRequests, AuditTrail, VerificationOverview,
-                        LoopVisual → LoopScene / GraphScene (3D), GraphView2D (2D), …
-demo/                   Sample evidence for the seeded work orders (see demo/SOURCES.md)
-supabase/schema.sql     Tables, RLS policies, Realtime publication, private storage bucket
-render.yaml             Render blueprint (backend)
-frontend/vercel.json    SPA rewrite (frontend)
-```
-
-### 3D scenes
-
-The landing hero and the work-order graph are React Three Fiber scenes in a lazily loaded chunk
-(`LoopVisual` → `LoopScene`, plus `GraphScene` for the work order).
-
-**Work-order graph.** At the top of each work order there's a collapsible panel with a live view
-of its verification state next to a summary ("4 of 6 proven · 1 uncertain · 1 not proven"). It
-is drawn from the work order's real data (`lib/verificationGraph.ts`); nothing in it is a
-decorative animation.
-- **Requirements:** nodes on the outer ring, coloured by status. A requirement being re-checked
-  by a running verification pulses. When a decision arrives, by Supabase Realtime or by polling
-  in local mode, the node fades to its new colour. An open evidence request puts an amber
-  marker above each requirement it names.
-- **Evidence:** files sit on the inner ring with an icon for photo, video, document or audio.
-  A new file flies in from outside the rings.
-- **Links:** a line joins a file to each requirement an observation cites it for: bright for a
-  direct observation, dim for an inference. New links fade in once the agent has used the
-  evidence.
-- **Interaction:** hover a node for its title and status. Click a requirement to scroll to and
-  highlight its checklist card, or a file to open it in the evidence viewer. Drag sideways to
-  turn the graph a little. The canvas is `touch-action: pan-y`, so swiping over it still
-  scrolls the page.
-- **Layout:** node size scales with the count, so 1 to 30 requirements never overlap.
-- **2D fallback** (`GraphView2D`): the same graph, where every node is a keyboard-reachable
-  button.
-
-Whether a device gets 3D is measured, not guessed from its specs:
-
-- Without WebGL 2, the same loop is drawn as a 2D SVG.
-- If the WebGL context is lost (GPU reset, driver update, too many contexts), the 2D SVG stands
-  in at once. The canvas stays mounted but hidden and paused, because the loss event is
-  `preventDefault`ed. When the browser fires `webglcontextrestored`, three.js rebuilds its GPU
-  state and the 3D view returns. EvidenceLoop logs nothing for this. three.js itself logs one
-  line each way, `THREE.WebGLRenderer: Context Lost.` and `… Context Restored.`; that is
-  expected.
-- The scene measures its frame rate for its first ~2 seconds (`lib/frameGovernor.ts`). Under
-  30 fps it switches to the 2D SVG for the rest of the session.
-- If the frame rate later drops below 45 fps, quality steps down one level at a time
-  (DPR 1 → Bloom off → fewer particles). It never steps back up, so it can't oscillate.
-  The current level is on the canvas as `data-quality` (0 = full).
-- It renders nothing while off-screen or in a hidden tab, and holds still under
-  `prefers-reduced-motion`.
-
-**Console:** two known, harmless three.js warnings are filtered in `LoopScene.tsx`, matched
-exactly; everything else three logs still reaches the console.
-- `THREE.Clock: This module has been deprecated`: R3F 9 still creates a `THREE.Clock`, and
-  the latest R3F (9.8.2) does too, so upgrading doesn't remove it.
-- Shader-compiler precision notes (`warning X4122`): Chrome and Edge on Windows add these for
-  shaders that compiled fine.
-
-## Local setup: details
-
-With no Supabase credentials the backend runs in **local mode**. Data and uploads are kept in
-`backend/.data/` (git-ignored), and there is no sign-in. Local mode is refused when
-`NODE_ENV=production`.
-
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | API and dashboard with hot reload |
-| `npm test` | Backend tests (policy, planner, media, Nebius client and multimodal payload, full demo loop and review flow over HTTP) and frontend tests (components, filters, AI status labels) |
-| `npm run lint` | ESLint over both workspaces |
-| `npm run typecheck` | Type-check both workspaces |
-| `npm run check` | Lint, typecheck, test and build. Run before every commit |
-| `npm run build` | Build both workspaces |
-| `npm run seed:demo` | Seeds the three demo work orders (DEV fixture, labelled simulated). `-- --reset` removes only them. `-- --owner <email>` in Supabase mode |
-| `npm run check:supabase` | Checks the Supabase key, auth settings (email confirmation), tables and columns, RLS and policies, Realtime, the review trigger, and that the storage bucket exists and is private |
-| `npm run check:nebius` | Live Nebius test: prints configured yes/no, the model id, text OK/FAIL, image (vision) OK/FAIL and latency. Never prints the key |
-
-### Connecting Supabase
-
-1. Create a project and run the whole of `supabase/schema.sql` in the SQL editor. It is
-   idempotent, so run it again after pulling schema changes. It also creates the private
-   `evidence` bucket.
-2. Backend (`backend/.env`): `SUPABASE_URL`, `SUPABASE_SECRET_KEY`.
-3. Frontend (`frontend/.env.local`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
-4. **Authentication → Sign In / Providers → Email:** enabled, with **Confirm email** on.
-5. **Authentication → URL Configuration** (local development):
-   - **Site URL:** `http://localhost:5173`
-   - **Redirect URLs:** add `http://localhost:5173/**`
-
-   The confirmation email links back to `/login` on the origin the user signed up from, which
-   signs them in. When the frontend is deployed, add its URL the same way
-   (`https://<your-app>.vercel.app/**`) and make it the Site URL.
-6. Run `npm run check:supabase`. Every line must say PASS.
-7. **Google sign-in (optional):** in Google Cloud create an OAuth client (Web) with redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`, then paste its Client ID and Secret under **Authentication → Sign In / Providers → Google**; it returns to `/auth/callback`, covered by the `<origin>/**` Redirect URLs above.
-
-Supabase's built-in email sender is rate-limited (a few emails per hour) and meant for testing.
-Configure custom SMTP under **Authentication → Emails** before real users sign up.
-
-With Supabase configured, the API requires a signed-in user, files go to a private Storage bucket
-(served through short-lived signed URLs), and the dashboard updates live through Realtime.
-
-Without Supabase (local mode) there is no Realtime channel, so the work order list and the work
-order page **poll every 5 seconds** while the tab is visible. They stop while it is hidden and
-catch up as soon as it is shown, so uploads and work orders created in another tab, or through
-the API, appear without a reload. With Supabase there is no 5-second poll; Realtime pushes the
-changes. In both modes, the work order page also refreshes every second while a verification run
-is in flight, again only while the tab is visible (`usePolling` in `frontend/src/hooks.ts`).
-
-### Enabling Nebius
-
-Set `NEBIUS_API_KEY` and `NEBIUS_MODEL` (the exact Nemotron model id from the Nebius console,
-e.g. `nvidia/Nemotron-3.5-Super-VL`) in `backend/.env`, or in Render's environment settings, then
-run `npm run check:nebius`.
-
-EvidenceLoop inspects photos and video frames, so the model must be **vision-capable**. If the
-check reports text OK but image FAIL, pick a vision Nemotron model in the Token Factory console
-and set `NEBIUS_MODEL` to its id.
-
-`ffmpeg-static` downloads an ffmpeg binary in its install script, and the root `package.json`
-approves that script under `allowScripts`. If video frames fail with `EFTYPE`, the download was
-interrupted: delete `node_modules/ffmpeg-static/ffmpeg.exe` (or `ffmpeg`) and run
-`node node_modules/ffmpeg-static/install.js`.
-
-## Environment variables
-
-| Where | Variable | Secret? |
-| --- | --- | --- |
-| Backend | `SUPABASE_URL` | no |
-| Backend | `SUPABASE_SECRET_KEY` | **yes** |
-| Backend | `NEBIUS_API_KEY` | **yes** |
-| Backend | `NEBIUS_BASE_URL`, `NEBIUS_MODEL` | no |
-| Backend | `PORT`, `CORS_ORIGIN`, `MAX_UPLOAD_MB`, `SUPABASE_STORAGE_BUCKET`, `DEV_FIXTURE_AI`, `FFMPEG_PATH` | no |
-| Frontend | `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | no (public) |
-
-## Security
-
-- `SUPABASE_SECRET_KEY` and `NEBIUS_API_KEY` are read only by the backend. The browser never
-  calls Nebius, and the only key it ever holds is the Supabase publishable key.
-- Anything prefixed `VITE_` is compiled into the public bundle. Only the three variables above
-  belong there.
-- `.env` files are git-ignored, and only value-free `.env.example` files are committed.
-- Row Level Security is enabled on every table. Signed-in users can read only their own work
-  orders' rows. There are no client-side write policies, so evidence, decisions and the audit
-  trail can only be written by the backend.
-- The API reports configuration as modes and booleans, never values, and does not log keys.
-- Uploads are size-limited, type-checked against the declared evidence kind, and hashed
-  (SHA-256) at upload for the audit trail.
-
-## Deploy
-
-Backend → **Render** (free web service, `render.yaml`), frontend → **Vercel** (`frontend/vercel.json`),
-auth / database / storage → the same **Supabase** project as local development. Do it in this
-order; values go into the dashboards only, never into the repository.
-
-**What the code already handles**
-
-- `NODE_ENV=production` refuses to start without Supabase (no unauthenticated local mode) and
-  refuses `DEV_FIXTURE_AI=true` (the fixture is not AI).
-- The Render build runs `npm run check:media`: it encodes a test video with ffmpeg and extracts a
-  test PDF, so a deploy without working video/PDF support fails at build time. `FFMPEG_PATH`
-  can point at a system ffmpeg instead of the `ffmpeg-static` binary.
-- Uploads up to `MAX_UPLOAD_MB` (50); the server allows 15 minutes per request, so a short video
-  on a slow connection is not cut off.
-- Render's free tier sleeps when idle and takes up to about a minute to wake. The dashboard shows
-  **"Waking up server…"** and retries reads automatically instead of showing an error. Writes are
-  never retried.
-- `CORS_ORIGIN` is comma-separated; trailing slashes are ignored.
-- `frontend/vercel.json` rewrites every route to `index.html`, so deep links such as
-  `/work-orders/<id>` and the e-mail confirmation redirect work.
-- `GET /api/health/ready` reports database, storage bucket, ffmpeg and PDF extraction as pass/fail
-  with short reasons, never values.
-
-### a) Render (backend)
-
-1. [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**.
-2. Connect GitHub if asked, pick **evidenceloop**, branch `main`. Render reads `render.yaml` and
-   shows one service, `evidenceloop-api`.
-3. Fill in the values it asks for (names only here):
-   - `CORS_ORIGIN` → for now `http://localhost:5173,http://localhost:5174` (the Vercel URL is
-     added in step c)
-   - `SUPABASE_URL`
-   - `SUPABASE_SECRET_KEY`
-   - `NEBIUS_API_KEY`
-   - `NEBIUS_MODEL`
-
-   Already set by the Blueprint: `NODE_ENV=production`, `DEV_FIXTURE_AI=false`, `NODE_VERSION=24`,
-   `MAX_UPLOAD_MB=50`, `SUPABASE_STORAGE_BUCKET=evidence`, `NEBIUS_BASE_URL`.
-4. **Apply**. Open the `evidenceloop-api` service → **Events/Logs**. The build ends with
-   `PASS video (ffmpeg)` and `PASS pdf (unpdf)`, the log shows `ai live test: connected`, and the
-   status badge at the top turns green: **Live**.
-5. Copy the URL shown under the service name (`https://evidenceloop-api-xxxx.onrender.com`).
-   Check `<that URL>/api/health` in a browser: `{"status":"ok",…}`.
-
-### b) Vercel (frontend)
-
-1. [vercel.com](https://vercel.com) → **Add New…** → **Project** → import **evidenceloop**.
-2. **Root Directory** → **Edit** → `frontend` → Continue. **Framework Preset**: Vite (install,
-   build and output come from `frontend/vercel.json`; leave them as they are).
-3. **Environment Variables**:
-   - `VITE_API_BASE_URL` = the Render URL, **no trailing slash**
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY` (the publishable key, never the secret key)
-4. **Deploy**. When it finishes → **Continue to Dashboard**; copy the production domain under
-   **Domains** (`https://<project>.vercel.app`), not the per-deployment URL with a hash in it.
-
-`VITE_*` values are compiled into the bundle: after changing one, **Redeploy**.
-
-### c) Render again (CORS)
-
-`evidenceloop-api` → **Environment** → `CORS_ORIGIN` →
-`https://<project>.vercel.app,http://localhost:5173,http://localhost:5174` → **Save, rebuild and
-deploy** (or Save, then **Manual Deploy → Deploy latest commit**).
-
-### d) Supabase (auth redirects)
-
-**Authentication → URL Configuration**:
-
-- **Site URL**: `https://<project>.vercel.app`
-- **Redirect URLs**: `https://<project>.vercel.app/**`, `http://localhost:5173/**`,
-  `http://localhost:5174/**`
-
-Save.
-
-### Smoke test
-
+Tech Stack
+Layer	Technology
+AI	NVIDIA Nemotron 3.5 Super VL + Nemotron 3 Nano via Nebius Token Factory
+Frontend	React 19, Vite 8, TypeScript, Tailwind CSS 4, React Router, Framer Motion
+3D	Three.js, React Three Fiber, Drei, Postprocessing
+Backend	Node.js 20, Express 5, TypeScript
+Media	`unpdf` (PDF text), `ffmpeg-static` (video frames), MediaRecorder / getUserMedia (capture)
+Data & Auth	Supabase Postgres with Row Level Security, Auth (Google + email), private Storage, Realtime
+Deploy	Vercel (frontend), Render (backend)
+---
+Try It
+Live: https://evidenceloop-phi.vercel.app
+Sign in with Google, or sign up with email and confirm the link in your inbox.
+Create a work order from the Emergency light replacement template (or open a demo work order).
+Upload or capture photos, then click Run verification.
+See which requirements are proven, and the specific evidence request.
+Record the requested video in the app, and watch only the affected requirements re-check.
+Ask Verity: "Why is this work order verified?"
+Submit for review and export the PDF report.
+> The backend runs on Render's free tier. If it has been idle, the first request can take up to a minute while it wakes up.
+---
+Quick Start
+> Requires **Node.js 20.12+**
 ```bash
-npm run smoke -- https://evidenceloop-api-xxxx.onrender.com https://<project>.vercel.app
+# 1. Clone
+git clone https://github.com/mokshadpoojary9-bot/evidenceloop.git && cd evidenceloop
+
+# 2. Install
+npm install
+
+# 3. Configure (add your Nebius key + model, or set DEV_FIXTURE_AI=true)
+cp backend/.env.example backend/.env
+
+# 4. Load demo data
+npm run seed:demo
+
+# 5. Run API (:4000) + app (http://localhost:5173) together
+npm run dev
 ```
-
-Waits up to two minutes for a sleeping backend, then prints a pass/fail table: health, the
-`/health/ping` keep-alive, Nemotron
-configured and live-tested, Supabase persistence and auth, database reachable, private evidence
-bucket, ffmpeg, PDF extraction, CORS preflight from the Vercel origin, the frontend and an SPA deep
-link, and whether the bundle points at this backend. It uses public endpoints only, so it needs no
-keys and prints none. Exit code 0 means everything passed.
-
-### After deploying
-
-1. **Sign up** on the live site and confirm the e-mail (the link opens the Vercel URL).
-2. **Seed the demo** from your machine (`backend/.env` points at the same Supabase project):
-   `npm run seed:demo -- --owner <your email>`. The owner must be a technician, so seed before
-   any role change.
-3. **Reviewer.** A reviewer can read every work order but cannot upload evidence or run
-   verification, so use a second account for it (e.g. `you+reviewer@…`): sign it up, then in the
-   SQL editor:
-   `insert into public.user_roles (id, role) select id, 'reviewer' from auth.users where email = 'you+reviewer@example.com' on conflict (id) do update set role = excluded.role;`
-
-### Keep the backend awake (optional, free)
-
-`GET /health/ping` answers `ok` without touching the database. Ping it every 10 minutes so the
-free Render instance does not sleep: on [cron-job.org](https://cron-job.org) create a cron job
-with that URL (e.g. `https://evidenceloop.onrender.com/health/ping`), schedule *every 10
-minutes*, request method GET. Free Render instances get 750 hours a month, enough for one
-service running all the time.
-
-### Persistence
-
-With Supabase every work order, requirement, evidence file (private Storage bucket),
-assessment, request, review and audit event is in the database, so it survives reloads,
-sign-out and restarts; production refuses to start without it (`stores/select.ts`). Only a
-verification run *in progress* lives in memory: if the server restarts mid-run, startup marks
-that run failed (decisions unchanged, audit event recorded) so nothing stays stuck in
-*Analyzing*; run verification again.
-
-## License
-
-MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Moksha Poojary.
+With no Supabase values, the app runs in local mode (no sign-in, data in `backend/.data/`).
+<details>
+<summary><b>Environment variables</b></summary>
+<br/>
+Backend (`backend/.env`, never committed)
+Variable	Required	Description
+`NEBIUS_API_KEY`	✅	Nebius Token Factory API key (secret)
+`NEBIUS_BASE_URL`	✅	`https://api.tokenfactory.nebius.com/v1`
+`NEBIUS_MODEL`	✅	`nvidia/Nemotron-3.5-Super-VL`
+`NEBIUS_ASSISTANT_MODEL`	optional	Verity's chat model (default `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`)
+`SUPABASE_URL`	optional	Supabase project URL
+`SUPABASE_SECRET_KEY`	optional	Supabase secret key (secret, backend only)
+`SUPABASE_STORAGE_BUCKET`	optional	`evidence`
+`CORS_ORIGIN`	✅	Allowed frontend origins, comma-separated
+`MAX_UPLOAD_MB`	optional	Upload size limit (default `50`)
+`DEV_FIXTURE_AI`	optional	`true` = labelled simulated AI for local dev only (disabled in production)
+Frontend (`frontend/.env.local`, public values only)
+Variable	Description
+`VITE_API_BASE_URL`	Backend URL (blank locally)
+`VITE_SUPABASE_URL`	Supabase project URL
+`VITE_SUPABASE_PUBLISHABLE_KEY`	Supabase publishable key
+</details>
+<details>
+<summary><b>Supabase + Google sign-in</b></summary>
+<br/>
+Create a Supabase project and run `supabase/schema.sql` in the SQL editor.
+Fill in the Supabase values in `backend/.env` and `frontend/.env.local`, then run `npm run check:supabase`.
+Google: in Google Cloud, create an OAuth client (Web application).
+Authorized JavaScript origins: your site URL(s), e.g. `http://localhost:5173`
+Authorized redirect URI: `https://<project>.supabase.co/auth/v1/callback`
+In Supabase → Authentication → Sign In / Providers → Google: enable it and paste the Client ID and Secret.
+In Supabase → Authentication → URL Configuration: set the Site URL and add `<your site>/**` to Redirect URLs.
+Sign up in the app, then seed your account: `npm run seed:demo -- --owner <your email>`.
+</details>
+<details>
+<summary><b>Deploy (Render + Vercel)</b></summary>
+<br/>
+Render: New → Blueprint → this repo (uses `render.yaml`). Set the backend variables above with `NODE_ENV=production` and `DEV_FIXTURE_AI=false`.
+Vercel: import the repo, Root Directory `frontend`, preset Vite, and set the three `VITE_*` variables (`VITE_API_BASE_URL` = your Render URL).
+Render: set `CORS_ORIGIN` to your Vercel URL (plus localhost for development).
+Supabase: set the Site URL and Redirect URLs to your Vercel URL.
+Check: `npm run smoke -- <render-url> <vercel-url>`.
+Optional keep-alive: ping `<render-url>/health/ping` every 10 minutes (e.g. cron-job.org) so the free tier doesn't sleep.
+</details>
+<details>
+<summary><b>Useful scripts</b></summary>
+<br/>
+Command	What it does
+`npm run dev`	API + app with hot reload
+`npm run check`	Lint → typecheck → tests → build
+`npm run check:nebius`	Live text + vision test against Nemotron
+`npm run check:supabase`	Verifies tables, RLS and storage bucket
+`npm run check:media`	Verifies PDF and video processing
+`npm run seed:demo`	Loads demo work orders (`-- --reset` removes them)
+`npm run smoke -- <api> <web>`	Production smoke test
+</details>
+---
+Project Structure
+```
+evidenceloop/
+├── backend/src/
+│   ├── agent/        # engine (loop) · policy · planner · sopDraft · audit
+│   ├── ai/           # nebiusProvider · devFixtureProvider · liveCheck
+│   ├── assistant/    # Verity: context · knowledge · rateLimit
+│   ├── media/        # PDF text · video frames
+│   ├── reports/      # PDF export
+│   ├── routes/       # work orders · requirements · reviews · assistant · health
+│   ├── stores/       # Supabase + local stores
+│   └── scripts/      # check:nebius · check:supabase · seed:demo · smoke
+├── frontend/src/
+│   ├── components/ui/   # design system
+│   └── components/      # Dashboard · WorkOrderDetail · ReviewQueue · AuditLog
+│                        # CameraCapture · VerityPanel · 3D scenes · Login · Legal
+├── demo/             # sample evidence (see demo/SOURCES.md)
+├── supabase/         # schema.sql (tables, RLS, Realtime, storage)
+├── docs/screenshots/ # README images
+├── render.yaml       # backend deploy
+├── DEMO.md           # 2-minute demo script
+└── LICENSE           # MIT
+```
+---
+Testing & Quality
+✅ 230+ automated tests across backend (policy, planner, engine, routes, media, assistant) and frontend (components, roles, camera, Verity, landing, 3D fallback)
+✅ `npm run check` runs lint → typecheck → tests → build
+✅ Full verification loop tested end-to-end over HTTP
+✅ Responsive down to 375px, light and dark mode, keyboard accessible
+✅ 3D scenes adapt to real FPS, respect `prefers-reduced-motion`, and fall back to 2D
+---
+Security
+🔐 `NEBIUS_API_KEY` and `SUPABASE_SECRET_KEY` live only on the backend and are never logged
+🔐 The browser only holds the Supabase publishable key
+🔐 Row Level Security on every table; roles enforced in the backend and the database
+🔐 Private storage bucket served through short-lived signed URLs
+🔐 Uploads size-limited, type-checked and SHA-256 hashed
+🔐 Google OAuth + confirmed email sign-in; safe same-site redirects only
+🔐 Verity is read-only and rate-limited per user
+---
+Limitations
+🔊 Audio and scanned PDFs without a text layer are not inspected yet (clearly labelled)
+🎥 Video is analysed as up to 8 still frames
+🖼️ The bundled demo images are illustrations; use real photos for real-model results
+💤 The free Render tier can take up to a minute to wake after being idle
+⚖️ EvidenceLoop assists human inspectors and does not replace certification
+Roadmap
+[ ] Audio transcription for spoken test confirmations
+[ ] OCR for scanned PDFs
+[ ] Offline mobile capture with guided evidence shots
+[ ] Multi-organisation workspaces and custom requirement libraries
+[ ] Webhooks for CMMS / ticketing integrations
+---
+Hackathon Submission
+	
+Hackathon	Nebius × NVIDIA Global AI Hackathon
+Track	Best Apps and Agents
+NVIDIA models	`nvidia/Nemotron-3.5-Super-VL` · `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`
+Runs on	Nebius Token Factory (runtime inference API)
+Live demo	https://evidenceloop-phi.vercel.app
+Built	During the submission period (Aug 26 – Oct 30, 2026)
+License
+Released under the MIT License.
+---
+Author
+<div align="center">
+Moksha Poojary
+![GitHub](https://img.shields.io/badge/GitHub-mokshadpoojary9--bot-181717?logo=github)
+Built for the Nebius × NVIDIA Global AI Hackathon · Powered by NVIDIA Nemotron on Nebius Token Factory
+<br/>
+⭐ If you like EvidenceLoop, give it a star! ⭐
+</div>
